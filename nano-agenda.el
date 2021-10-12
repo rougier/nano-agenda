@@ -65,18 +65,21 @@
 (defvar nano-agenda--busy-levels (list)
   "Cached list of (date busy-level) for internal use")
 
-(defvar nano-agenda-today-symbol  "•"
-  "Symbol to show curren day")
+(defcustom nano-agenda-today-symbol  "•"
+  "Symbol to show current day"
+  :group 'nano-agenda)
 
 (defcustom nano-agenda-busy-backgrounds  (list "#FFF9DB" "#FFF3BF" "#FFEC99" "#FFE066" "#FFD43B"
                                                "#FCC419" "#FAB005" "#F59F00" "#F08C00" "#E67700")
   "Background colors to be used to highlight a day in calendar
-  view according to busy level.")
+  view according to busy level."
+  :group 'nano-agenda-faces)
 
 (defcustom nano-agenda-busy-foregrounds (list "#000000" "#000000" "#000000" "#000000" "#000000"
                                               "#000000" "#000000" "#000000" "#000000" "#FFFFFF")
   "Foreground colors to be used to highlight a day in calendar
-  view according to busy level.")
+  view according to busy level."
+  :group 'nano-agenda-faces)
 
 (defface nano-agenda-default
   '((t :inherit default))
@@ -204,10 +207,34 @@
          (rformat (format "%%%ds" (- size))))
     (format rformat (format lformat string))))
 
-(defun nano-agenda-select-window ()
-  "Default function to select where to show agenda."
 
+(defun nano-agenda-select-window ()
+  "Default function to select where to show agenda. Default
+behavior is to split vertically current window."
   (split-window nil -10 nil))
+
+
+(defun nano-agenda-select-entry (entry)
+  "Function to decide whether an entry is
+displayed/counted. Default behavior is to select only timestamped
+entries."
+  (get-text-property 0 'time-of-day entry))
+
+
+(defun nano-agenda-display-entry (entry)
+  "Function to display a specific (org) entry"
+
+  (let* ((text        (get-text-property 0 'txt entry))
+         (time        (get-text-property 0 'time entry))
+         (time-of-day (get-text-property 0 'time-of-day entry))
+         (hours       (if time-of-day
+                          (format "/%02dh —/" (floor (/ time-of-day 100)))
+                        "     "))
+         (minutes     (if time-of-day
+                          (% time-of-day 100) -1))
+         (duration    (get-text-property 0 'duration entry)))
+    (insert (format "%s %s\n" hours text))))
+
 
 (defun nano-agenda ()
   "Create windows & buffers associated with the agenda (below current window).
@@ -312,7 +339,7 @@ for efficiency."
       (progn
         (dolist (file org-agenda-files)
           (dolist (entry (org-agenda-get-day-entries file date))
-            (if (get-text-property 0 'time-of-day entry)
+            (if (nano-agenda-select-entry entry)
                 (setq level (+ level 1)))))
         (add-to-list 'nano-agenda--busy-levels `(,date ,level))
         level))))
@@ -341,7 +368,7 @@ for efficiency."
     ;; Collect all entries with 'time-of-day
     (dolist (file org-agenda-files)
       (dolist (entry (org-agenda-get-day-entries file date))
-        (if (get-text-property 0 'time-of-day entry)
+        (if (nano-agenda-select-entry entry)
             (add-to-list 'entries entry))))
 
     ;; Sort entries
@@ -352,18 +379,7 @@ for efficiency."
 
     ;; Display entries
     (dolist (entry (cl-subseq entries 0 (min 4 (length entries))))
-;;    (dolist (entry entries)
-      (let* ((text        (get-text-property 0 'txt entry))
-             (time        (get-text-property 0 'time entry))
-             (time-of-day (get-text-property 0 'time-of-day entry))
-             (hours       (if time-of-day
-                              (format "/%02dh —/" (floor (/ time-of-day 100)))
-                            "     "))
-             (minutes     (if time-of-day
-                              (% time-of-day 100) -1))
-             (duration    (get-text-property 0 'duration entry)))
-        (insert (format "%s %s\n" hours text))))
-
+      (nano-agenda-display-entry entry))
     (if (> (length entries) 4)
         (insert (format "/+%S non-displayed event(s)/" (- (length entries) 4)))))
 
