@@ -6,5 +6,3 @@ current selected date) alongside a view of your agenda displaying
 timestamped entries. 
 
 ![](nano-agenda.png)
-
-

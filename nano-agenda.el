@@ -65,24 +65,27 @@
 (defvar nano-agenda--busy-levels (list)
   "Cached list of (date busy-level) for internal use")
 
+(defvar nano-agenda-today-symbol  "•"
+  "Symbol to show curren day")
+
+(defvar nano-agenda-busy-backgrounds  (list "#FFF9DB" "#FFF3BF" "#FFEC99" "#FFE066" "#FFD43B"
+                                           "#FCC419" "#FAB005" "#F59F00" "#F08C00" "#E67700")
+  "Background colors to be used to highlight a day in calendar
+  view according to busy level.")
+
+(defvar nano-agenda-busy-foregrounds (list "#000000" "#000000" "#000000" "#000000" "#000000"
+                                          "#000000" "#000000" "#000000" "#000000" "#FFFFFF")
+  "Foreground colors to be used to highlight a day in calendar
+  view according to busy level.")
+
 (defface nano-agenda-default
   '((t :inherit default))
-  "Default face"
+  "Default face (for casual day)"
   :group 'nano-agenda-faces)
 
 (defface nano-agenda-selected
   '((t :inherit default :inverse-video t))
   "Face for the selected day"
-  :group 'nano-agenda-faces)
-
-(defface nano-agenda-today
-  '((t :inherit (font-lock-string-face bold)))
-  "Today face when not selected."
-  :group 'nano-agenda-faces)
-
-(defface nano-agenda-selected-today
-  '((t :inherit (font-lock-string-face nano-strong) :inverse-video t))
-  "Today face when selected."
   :group 'nano-agenda-faces)
 
 (defface nano-agenda-weekend
@@ -97,7 +100,7 @@
 
 (defface nano-agenda-outday
   '((t :inherit font-lock-comment-face))
-  "Out day face"
+  "Out day face, that is, day outside curent month."
   :group 'nano-agenda-faces)
 
 (defface nano-agenda-day-name
@@ -408,15 +411,20 @@ for efficiency."
          (start    (make-ts :year year :month month :day 1
                             :hour 0 :minute 0 :second 0))
          (dow      (mod (+ 6 (ts-dow start)) 7))
-         (start    (ts-dec 'day dow start))
-         (body     ""))
+         (start    (ts-dec 'day dow start)))
 
     (dotimes (row 6)
       (dotimes (col 7)
         (let* ((day (+ (* row 7) col))
                (date (ts-inc 'day day start))
+
                ;; Slow
-               ;; (level (nano-agenda--busy-level date))
+               (level (nano-agenda--busy-level date))
+               (level (min (length nano-agenda-busy-foregrounds) level))
+               (foreground (nth (- level 1) nano-agenda-busy-foregrounds))
+               (background (nth (- level 1) nano-agenda-busy-backgrounds))
+               ;; ----
+
                (map (make-sparse-keymap))
                (is-today (and (= (ts-year date) (ts-year today))
                               (= (ts-doy date) (ts-doy today))))
@@ -429,10 +437,11 @@ for efficiency."
                                                       (ts-day date)
                                                       (ts-year date))))
                (is-weekend (or (= (ts-dow date) 0) (= (ts-dow date) 6)))
-               (face (cond (is-selected-today 'nano-agenda-selected-today)
+               (face (cond ;; (is-selected-today 'nano-agenda-selected-today)
                            (is-selected       'nano-agenda-selected)
-                           (is-today          'nano-agenda-today)
+                           ;; (is-today          'nano-agenda-today)
                            (is-outday         'nano-agenda-outday)
+                           ((> level 0)       `(:foreground ,foreground :background ,background ))
                            (is-weekend        'nano-agenda-weekend)
                            (is-holidays       'nano-agenda-holidays)
                            (t                 'nano-agenda-default))))
@@ -449,7 +458,9 @@ for efficiency."
                                                    (if is-holidays (format " (%s)" (nth 0 is-holidays))
                                                      ""))
                                 'keymap map))
-            (if (< col 6) (insert " "))))
+            (if (< col 6)
+                (insert (propertize (if is-today "•" " ") 'face face))
+              )))
       (if (< row 5) (insert "\n")))))
 
 (provide 'nano-agenda)
