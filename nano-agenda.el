@@ -209,10 +209,19 @@
 
 
 (defun nano-agenda-select-window ()
-  "Default function to select where to show agenda. Default
-behavior is to split vertically current window."
-  (split-window nil -10 nil))
+  "Function to select where to show agenda. Default
+behavior is to split vertically current window.
 
+          (before)                        (after) 
++--------------------------+    +--------------------------+
+|                          |    |                          |
+|                          |    |                          |
+|                          | -> |                          |
+|                          |    +----------+---------------+
+|                          |    | calendar | agenda        |
++--------------------------+    +----------+---------------+"
+  
+  (split-window nil -10 nil))
 
 (defun nano-agenda-select-entry (entry)
   "Function to decide whether an entry is
@@ -237,16 +246,7 @@ entries."
 
 
 (defun nano-agenda ()
-  "Create windows & buffers associated with the agenda (below current window).
-
-          (before)                         (after) 
-+--------------------------+     +--------------------------+
-|                          |     |                          |
-|                          |     |                          |
-|                          | ->  |                          |
-|                          |     +----------+---------------+
-|                          |     | calendar | agenda        |
-+--------------------------+     +----------+---------------+"
+  "Create windows & buffers associated with the agenda."
 
   (interactive)
   
@@ -386,8 +386,6 @@ for efficiency."
   
   (goto-char (point-min)))
 
-
-
 (defun nano-agenda--populate-calendar ()
   "Populate the calendar according to the month of the current selected date."
 
@@ -478,8 +476,7 @@ for efficiency."
                                                      ""))
                                 'keymap map))
             (if (< col 6)
-                (insert (propertize (if is-today "•" " ") 'face face))
-              )))
+                (insert (propertize (if is-today "•" " ") 'face face)))))
       (if (< row 5) (insert "\n")))))
 
 (provide 'nano-agenda)
