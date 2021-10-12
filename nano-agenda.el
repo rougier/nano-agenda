@@ -68,13 +68,13 @@
 (defvar nano-agenda-today-symbol  "•"
   "Symbol to show curren day")
 
-(defvar nano-agenda-busy-backgrounds  (list "#FFF9DB" "#FFF3BF" "#FFEC99" "#FFE066" "#FFD43B"
-                                           "#FCC419" "#FAB005" "#F59F00" "#F08C00" "#E67700")
+(defcustom nano-agenda-busy-backgrounds  (list "#FFF9DB" "#FFF3BF" "#FFEC99" "#FFE066" "#FFD43B"
+                                               "#FCC419" "#FAB005" "#F59F00" "#F08C00" "#E67700")
   "Background colors to be used to highlight a day in calendar
   view according to busy level.")
 
-(defvar nano-agenda-busy-foregrounds (list "#000000" "#000000" "#000000" "#000000" "#000000"
-                                          "#000000" "#000000" "#000000" "#000000" "#FFFFFF")
+(defcustom nano-agenda-busy-foregrounds (list "#000000" "#000000" "#000000" "#000000" "#000000"
+                                              "#000000" "#000000" "#000000" "#000000" "#FFFFFF")
   "Foreground colors to be used to highlight a day in calendar
   view according to busy level.")
 
@@ -204,6 +204,10 @@
          (rformat (format "%%%ds" (- size))))
     (format rformat (format lformat string))))
 
+(defun nano-agenda-select-window ()
+  "Default function to select where to show agenda."
+
+  (split-window nil -10 nil))
 
 (defun nano-agenda ()
   "Create windows & buffers associated with the agenda (below current window).
@@ -229,8 +233,7 @@
       (when agenda-window
         (delete-window agenda-window)
         (setq agenda-window nil))
-      (setq calendar-window (split-window nil -10 nil)))
-    ;; (setq calendar-window (split-window nil -10 'above)))
+      (setq calendar-window (nano-agenda-select-window)))
 
     ;; Create agenda window if necessary
     (unless agenda-window
