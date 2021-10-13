@@ -365,7 +365,7 @@ for efficiency."
     (insert "\n")
     (insert (ts-format "*%A %-e %B %Y*" selected))
     (if is-today
-        (insert (format-time-string " /(current time is %H:%M)/")))
+        (insert (format-time-string " /(%H:%M)/")))
     (if (and (not is-today) holidays)
         (insert (format " /(%s)/" (nth 0 holidays))))
     (insert "\n\n")
@@ -484,7 +484,7 @@ for efficiency."
                                                      ""))
                                 'keymap map))
             (if (< col 6)
-                (insert (propertize (if is-today "•" " ") 'face face)))))
+                (insert (propertize (if is-today nano-agenda-today-symbol " ") 'face face)))))
       (if (< row 5) (insert "\n")))))
 
 (provide 'nano-agenda)
