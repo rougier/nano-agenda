@@ -247,6 +247,7 @@ entries."
     (insert (format "%s %s\n" hours text))))
 
 
+;;;###autoload
 (defun nano-agenda ()
   "Create windows & buffers associated with the agenda."
 
