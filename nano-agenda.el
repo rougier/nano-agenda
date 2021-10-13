@@ -73,12 +73,14 @@
                                                "#FCC419" "#FAB005" "#F59F00" "#F08C00" "#E67700")
   "Background colors to be used to highlight a day in calendar
   view according to busy level."
+  :type '(repeat color)
   :group 'nano-agenda-faces)
 
 (defcustom nano-agenda-busy-foregrounds (list "#000000" "#000000" "#000000" "#000000" "#000000"
                                               "#000000" "#000000" "#000000" "#000000" "#FFFFFF")
   "Foreground colors to be used to highlight a day in calendar
   view according to busy level."
+  :type '(repeat color)
   :group 'nano-agenda-faces)
 
 (defface nano-agenda-default
@@ -353,13 +355,18 @@ for efficiency."
          (month    (ts-month selected))
          (year     (ts-year  selected))
          (date     (list month day year))
+         (today    (ts-now))
+         (is-today (and (= (ts-year selected) (ts-year today))
+                        (= (ts-doy selected) (ts-doy today))))
          (holidays (calendar-check-holidays date))
          (entries '()))
 
     ;; Header (literal date + holidays (if any))
     (insert "\n")
     (insert (ts-format "*%A %-e %B %Y*" selected))
-    (if holidays
+    (if is-today
+        (insert (format-time-string " /(current time is %H:%M)/")))
+    (if (and (not is-today) holidays)
         (insert (format " /(%s)/" (nth 0 holidays))))
     (insert "\n\n")
 
@@ -378,13 +385,14 @@ for efficiency."
                                      (get-text-property 0 'time-of-day entry-2)))))
 
     ;; Display entries
-    (dolist (entry (cl-subseq entries 0 (min 4 (length entries))))
-      (nano-agenda-display-entry entry))
-    (if (> (length entries) 4)
-        (insert (format "/+%S non-displayed event(s)/" (- (length entries) 4)))))
-
+    (let ((limit (if (< (length entries) 6) 6 4)))
+      (dolist (entry (cl-subseq entries 0 (min limit (length entries))))
+        (nano-agenda-display-entry entry))
+      (if (> (length entries) limit)
+          (insert (format "/+%S non-displayed event(s)/" (- (length entries) limit))))))
   
-  (goto-char (point-min)))
+    (goto-char (point-min)))
+
 
 (defun nano-agenda--populate-calendar ()
   "Populate the calendar according to the month of the current selected date."
