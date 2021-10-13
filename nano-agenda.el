@@ -339,7 +339,7 @@ for efficiency."
     (if entry
         (cadr entry)
       (progn
-        (dolist (file org-agenda-files)
+        (dolist (file (org-agenda-files))
           (dolist (entry (org-agenda-get-day-entries file date))
             (if (nano-agenda-select-entry entry)
                 (setq level (+ level 1)))))
@@ -373,7 +373,7 @@ for efficiency."
     ;; Body (only timed entries)
 
     ;; Collect all entries with 'time-of-day
-    (dolist (file org-agenda-files)
+    (dolist (file (org-agenda-files))
       (dolist (entry (org-agenda-get-day-entries file date))
         (if (nano-agenda-select-entry entry)
             (add-to-list 'entries entry))))
