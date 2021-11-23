@@ -4,7 +4,7 @@
 
 ;; Maintainer: Nicolas P. Rougier <Nicolas.Rougier@inria.fr>
 ;; URL: https://github.com/rougier/nano-agenda
-;; Version: 0.1
+;; Version: 0.2
 ;; Package-Requires: ((emacs "27.1") (ts "0.2.2"))
 ;; Keywords: convenience, org-mode, org-agenda
 
@@ -38,11 +38,13 @@
 ;;
 ;;; NEWS:
 ;;
+;; Version 0.2
+;; - Removed ts (MELPA) dependency
+;;
 ;; Version 0.1
 ;; - Submission to ELPA
 ;;
 ;;; Code 
-(require 'ts)
 (require 'org)
 (require 'cl-lib)
 (require 'org-agenda)
@@ -59,7 +61,7 @@
   "N Λ N O agenda faces"
   :group 'nano-agenda)
 
-(defvar nano-agenda--current-selection (ts-now)
+(defvar nano-agenda--current-selection (current-time)
   "Current selected date")
 
 (defvar nano-agenda--busy-levels (list)
@@ -128,54 +130,137 @@
   "Header button (left and right)"
   :group 'nano-agenda-faces)
 
+(defun nano-agenda-date (year month day)
+  "Return a date correspondng to DAY/MONTH/YEAR."
+  (encode-time 0 0 0 day month year))
+
+(defun nano-agenda-date-equal (date1 date2)
+  "Check if DATE1 is equal to DATE2."
+  (and (eq (nano-agenda-date-day date1)
+           (nano-agenda-date-day date2))
+       (eq (nano-agenda-date-month date1)
+           (nano-agenda-date-month date2))
+       (eq (nano-agenda-date-year date1)
+           (nano-agenda-date-year date2))))
+
+(defun nano-agenda-date-inc (date &optional days months years)
+  "Return DATE + DAYS day & MONTH months & YEARS years"
+  (let ((days (or days 0))
+        (months (or months 0))
+        (years (or years 0))
+        (day (nano-agenda-date-day date))
+        (month (nano-agenda-date-month date))
+        (year (nano-agenda-date-year date)))
+    (encode-time 0 0 0 (+ day days) (+ month months) (+ year years))))
+
+(defun nano-agenda-date-dec (date &optional days months years)
+  "Return DATE - DAYS day & MONTH months & YEARS years"
+  (let ((days (or days 0))
+        (months (or months 0))
+        (years (or years 0)))
+    (nano-agenda-date-inc date (- days) (- months) (- years))))
+
+
+(defun nano-agenda-date-day (date)
+  "Return DATE day of month (1-31)."
+  (nth 3 (decode-time date)))
+                        
+(defun nano-agenda-date-month (date)
+  "Return DATE month number (1-12)."
+  (nth 4 (decode-time date)))
+
+(defun nano-agenda-date-year (date)
+  "Return DATE year."
+  (nth 5 (decode-time date)))
+
+(defun nano-agenda-date-doy (date)
+  "Return DATE day of year (1-366)."
+  (string-to-number (format-time-string "%j" date)))
+
+(defun nano-agenda-date-dow (date)
+  "Return DATE day of week (0-6)."
+  (nth 6 (decode-time date)))
+
+(defun nano-agenda-date-day-name (date)
+  "Return DATE full day name."
+  (format-time-string "%A" date))
+
+(defun nano-agenda-date-month-name (date)
+  "Return DATE full month name."
+  (format-time-string "%B" date))
+
+(defun nano-agenda-date-is-today (date)
+  "Check if DATE is today."
+  (nano-agenda-date-equal (current-time) date))
+
+(defun nano-agenda-date-today ()
+  "Return today date."
+  (current-time))
+
+(defun nano-agenda-date-tomorrow ()
+  "Return tomorrow date."
+  (nano-agenda-date-inc (nano-agenda-date-today) 1 0 0))
+  
+(defun nano-agenda-yesterday ()
+  "Return yesterday date."
+  (nano-agenda-date-dec (nano-agenda-date-today) 1 0 0))
+
 (defun nano-agenda-forward-day ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-inc 'day 1 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-inc nano-agenda--current-selection 1))
   (nano-agenda-update))
 
 (defun nano-agenda-backward-day ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-dec 'day 1 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-dec nano-agenda--current-selection 1))
   (nano-agenda-update))
 
 (defun nano-agenda-forward-week ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-inc 'day 7 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-inc nano-agenda--current-selection 7))
   (nano-agenda-update))
 
 (defun nano-agenda-backward-week ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-dec 'day 7 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-dec nano-agenda--current-selection 7))
   (nano-agenda-update))
 
 (defun nano-agenda-forward-month ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-inc 'month 1 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-inc nano-agenda--current-selection 0 1))
   (nano-agenda-update))
 
 (defun nano-agenda-backward-month ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-dec 'month 1 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-dec nano-agenda--current-selection 0 1))
   (nano-agenda-update))
   
 (defun nano-agenda-forward-year ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-inc 'year 1 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-inc nano-agenda--current-selection 0 0 1))
   (nano-agenda-update))
     
 (defun nano-agenda-backward-year ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-dec 'year 1 nano-agenda--current-selection))
+  (setq nano-agenda--current-selection
+        (nano-agenda-date-dec nano-agenda--current-selection 0 0 1))
   (nano-agenda-update))
 
 (defun nano-agenda-goto-today ()
   (interactive)
-  (setq nano-agenda--current-selection (ts-now))
+  (setq nano-agenda--current-selection (nano-agenda-date-today))
   (nano-agenda-update))
 
 (defun nano-agenda-goto (&optional date)
   (interactive)
-  (setq nano-agenda--current-selection (or date (ts-now)))
+  (setq nano-agenda--current-selection (or date (nano-agenda-date-today)))
   (nano-agenda-update))
 
 (define-minor-mode nano-agenda-mode
@@ -330,9 +415,9 @@ entries."
 counting the number of timed entries. Computed levels are cached
 for efficiency."
     
-  (let* ((day   (ts-day   date))
-         (month (ts-month date))
-         (year  (ts-year  date))
+  (let* ((day   (nano-agenda-date-day   date))
+         (month (nano-agenda-date-month date))
+         (year  (nano-agenda-date-year  date))
          (date  (list month day year))
          (level 0)
          (entry (assoc date nano-agenda--busy-levels)))
@@ -352,19 +437,18 @@ for efficiency."
   "Populate the agenda according to current selected date."
 
   (let* ((selected nano-agenda--current-selection)
-         (day      (ts-day   selected))
-         (month    (ts-month selected))
-         (year     (ts-year  selected))
+         (day      (nano-agenda-date-day   selected))
+         (month    (nano-agenda-date-month selected))
+         (year     (nano-agenda-date-year  selected))
          (date     (list month day year))
-         (today    (ts-now))
-         (is-today (and (= (ts-year selected) (ts-year today))
-                        (= (ts-doy selected) (ts-doy today))))
+         (today    (nano-agenda-date-today))
+         (is-today (nano-agenda-date-is-today selected))
          (holidays (calendar-check-holidays date))
          (entries '()))
 
     ;; Header (literal date + holidays (if any))
     (insert "\n")
-    (insert (ts-format "*%A %-e %B %Y*" selected))
+    (insert (format-time-string "*%A %-e %B %Y*" selected))
     (if is-today
         (insert (format-time-string " /(%H:%M)/")))
     (if (and (not is-today) holidays)
@@ -412,9 +496,10 @@ for efficiency."
                         'mouse-face 'nano-agenda-mouse
                         'help-echo "Previous month"
                         'keymap map-left))
-    (insert (propertize (nano-agenda--center-string (format "%s %d"
-                                                            (ts-month-name selected)
-                                                            (ts-year selected)) 18)
+    (insert (propertize (nano-agenda--center-string
+                         (format "%s %d"
+                                 (nano-agenda-date-month-name selected)
+                                 (nano-agenda-date-year selected)) 18)
                         'face 'nano-agenda-month-name))
     (insert (propertize ">" 'face 'nano-agenda-button
                         'mouse-face 'nano-agenda-mouse
@@ -430,19 +515,18 @@ for efficiency."
   ;; Body with navigation keymap
   ;; ---------------------------
   (let* ((selected nano-agenda--current-selection)
-         (today    (ts-now))
-         (day      (ts-day   selected))
-         (month    (ts-month selected))
-         (year     (ts-year  selected))
-         (start    (make-ts :year year :month month :day 1
-                            :hour 0 :minute 0 :second 0))
-         (dow      (mod (+ 6 (ts-dow start)) 7))
-         (start    (ts-dec 'day dow start)))
+         (today    (nano-agenda-date-today))
+         (day      (nano-agenda-date-day selected))
+         (month    (nano-agenda-date-month selected))
+         (year     (nano-agenda-date-year selected))
+         (start    (nano-agenda-date year month 1))
+         (dow      (mod (+ 6 (nano-agenda-date-dow start)) 7))
+         (start    (nano-agenda-date-dec start dow)))
 
     (dotimes (row 6)
       (dotimes (col 7)
         (let* ((day (+ (* row 7) col))
-               (date (ts-inc 'day day start))
+               (date (nano-agenda-date-inc start day))
 
                ;; Slow
                (level (nano-agenda--busy-level date))
@@ -452,17 +536,16 @@ for efficiency."
                ;; ----
 
                (map (make-sparse-keymap))
-               (is-today (and (= (ts-year date) (ts-year today))
-                              (= (ts-doy date) (ts-doy today))))
-               (is-selected (and (= (ts-year date) (ts-year selected))
-                                 (= (ts-doy date) (ts-doy selected))))
+               (is-today (nano-agenda-date-is-today date))
+               (is-selected (nano-agenda-date-equal date selected))
                (is-selected-today (and is-selected is-today))
-               (is-outday (not (= (ts-month date) month)))
+               (is-outday (not (= (nano-agenda-date-month date) month)))
                (is-holidays (calendar-check-holidays (list
-                                                      (ts-month date)
-                                                      (ts-day date)
-                                                      (ts-year date))))
-               (is-weekend (or (= (ts-dow date) 0) (= (ts-dow date) 6)))
+                                                      (nano-agenda-date-month date)
+                                                      (nano-agenda-date-day date)
+                                                      (nano-agenda-date-year date))))
+               (is-weekend (or (= (nano-agenda-date-dow date) 0)
+                               (= (nano-agenda-date-dow date) 6)))
                (face (cond ;; (is-selected-today 'nano-agenda-selected-today)
                            (is-selected       'nano-agenda-selected)
                            ;; (is-today          'nano-agenda-today)
@@ -475,12 +558,12 @@ for efficiency."
           (define-key map (kbd "<down-mouse-1>")
             `(lambda() (interactive) (nano-agenda-goto ,date)))
 
-            (insert (propertize (format "%2d" (ts-day date))
+            (insert (propertize (format "%2d" (nano-agenda-date-day date))
                                 'face face
                                 'mouse-face (cond (is-selected-today 'nano-agenda-selected-today)
                                                   (is-selected       'nano-agenda-selected)
                                                   (t                 'nano-agenda-mouse))
-                                'help-echo (format "%s%s" (ts-format "%A %-e %B %Y" date)
+                                'help-echo (format "%s%s" (format-time-string "%A %-e %B %Y" date)
                                                    (if is-holidays (format " (%s)" (nth 0 is-holidays))
                                                      ""))
                                 'keymap map))
