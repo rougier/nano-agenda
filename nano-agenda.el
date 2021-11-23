@@ -4,8 +4,8 @@
 
 ;; Maintainer: Nicolas P. Rougier <Nicolas.Rougier@inria.fr>
 ;; URL: https://github.com/rougier/nano-agenda
-;; Version: 0.2
-;; Package-Requires: ((emacs "27.1") (ts "0.2.2"))
+;; Version: 0.2.1
+;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience, org-mode, org-agenda
 
 ;; This file is not part of GNU Emacs.
@@ -37,6 +37,9 @@
 ;; M-x: nano-agenda
 ;;
 ;;; NEWS:
+;;
+;; Version 0.2.1
+;; - Removed ts requirements
 ;;
 ;; Version 0.2
 ;; - Removed ts (MELPA) dependency
