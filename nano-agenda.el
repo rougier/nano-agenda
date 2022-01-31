@@ -74,6 +74,17 @@
   "Symbol to show current day"
   :group 'nano-agenda)
 
+(defcustom nano-agenda-sort-function #'nano-agenda-default-sort-function
+  "Function to sort a day's entries.
+This function takes an entries list and returns the list in the desired order."
+  :group 'nano-agenda)
+
+(defcustom nano-agenda-select-entry-predicate #'nano-agenda-select-entry
+  "Predicate to decide if entry will be shown in the nano-agenda buffer.
+This function takes an entry and the selected date. Returns a value if the entry
+should be shown, otherwise, returns nil."
+  :group 'nano-agenda)
+
 (defcustom nano-agenda-busy-backgrounds  (list "#FFF9DB" "#FFF3BF" "#FFEC99" "#FFE066" "#FFD43B"
                                                "#FCC419" "#FAB005" "#F59F00" "#F08C00" "#E67700")
   "Background colors to be used to highlight a day in calendar
@@ -313,12 +324,19 @@ behavior is to split vertically current window.
   
   (split-window nil -10 nil))
 
-(defun nano-agenda-select-entry (entry)
+(defun nano-agenda-select-entry (entry &optional date)
   "Function to decide whether an entry is
 displayed/counted. Default behavior is to select only timestamped
 entries."
   (get-text-property 0 'time-of-day entry))
 
+(defun nano-agenda-default-sort-function (entries)
+  "Function to decide the order ENTRIES will be shown to the user.
+Returns entries in `time-of-day' order."
+  (sort entries #'(lambda (entry-1 entry-2)
+                    (<
+                     (get-text-property 0 'time-of-day entry-1)
+                     (get-text-property 0 'time-of-day entry-2)))))
 
 (defun nano-agenda-display-entry (entry)
   "Function to display a specific (org) entry"
@@ -430,7 +448,7 @@ for efficiency."
       (progn
         (dolist (file (org-agenda-files))
           (dolist (entry (org-agenda-get-day-entries file date))
-            (if (nano-agenda-select-entry entry)
+            (if (funcall nano-agenda-select-entry-predicate entry date)
                 (setq level (+ level 1)))))
         (add-to-list 'nano-agenda--busy-levels `(,date ,level))
         level))))
@@ -458,19 +476,16 @@ for efficiency."
         (insert (format " /(%s)/" (nth 0 holidays))))
     (insert "\n\n")
 
-    ;; Body (only timed entries)
+    ;; Body (default timed entries)
 
-    ;; Collect all entries with 'time-of-day
+    ;; Collect entries from agenda files.
     (dolist (file (org-agenda-files))
       (dolist (entry (org-agenda-get-day-entries file date))
-        (if (nano-agenda-select-entry entry)
+        (if (funcall nano-agenda-select-entry-predicate entry date)
             (add-to-list 'entries entry))))
 
     ;; Sort entries
-    (setq entries (sort entries #'(lambda (entry-1 entry-2)
-                                    (< 
-                                     (get-text-property 0 'time-of-day entry-1)
-                                     (get-text-property 0 'time-of-day entry-2)))))
+    (setq entries (funcall nano-agenda-sort-function entries))
 
     ;; Display entries
     (let ((limit (if (< (length entries) 6) 6 4)))
