@@ -4,7 +4,7 @@
 
 ;; Maintainer: Nicolas P. Rougier <Nicolas.Rougier@inria.fr>
 ;; URL: https://github.com/rougier/nano-agenda
-;; Version: 0.2.1
+;; Version: 0.2.2
 ;; Package-Requires: ((emacs "27.1"))
 ;; Keywords: convenience, org-mode, org-agenda
 
@@ -37,6 +37,10 @@
 ;; M-x: nano-agenda
 ;;
 ;;; NEWS:
+;;
+;; Version 0.2.2
+;; - Better entries sorting
+;; - Include non timestamped entries
 ;;
 ;; Version 0.2.1
 ;; - Removed ts requirements
@@ -322,35 +326,39 @@ behavior is to split vertically current window.
 |                          |    | calendar | agenda        |
 +--------------------------+    +----------+---------------+"
   
-  (split-window nil -10 nil))
+  (split-window nil -10 'below))
 
 (defun nano-agenda-select-entry (entry &optional date)
   "Function to decide whether an entry is
-displayed/counted. Default behavior is to select only timestamped
-entries."
-  (get-text-property 0 'time-of-day entry))
+displayed/counted. Default behavior is to select all entries."
 
-(defun nano-agenda-default-sort-function (entries)
+  (not (string-search ":CANCELLED:" entry)))
+
+(defun nano-agenda-default-sort-function (entry-1 entry-2)
   "Function to decide the order ENTRIES will be shown to the user.
 Returns entries in `time-of-day' order."
-  (sort entries #'(lambda (entry-1 entry-2)
-                    (<
-                     (get-text-property 0 'time-of-day entry-1)
-                     (get-text-property 0 'time-of-day entry-2)))))
+
+  (let ((time-1 (get-text-property 0 'time-of-day entry-1))
+        (time-2 (get-text-property 0 'time-of-day entry-2)))
+    (cond ((not time-1) t)
+          ((not time-2) nil)
+          (t (< time-1 time-2)))))
 
 (defun nano-agenda-display-entry (entry)
   "Function to display a specific (org) entry"
 
-  (let* ((text        (get-text-property 0 'txt entry))
+  (let* ((text (get-text-property 0 'txt entry))
+         (text (replace-regexp-in-string ":.*:" "" text))
+         (text (string-trim text))
          (time        (get-text-property 0 'time entry))
          (time-of-day (get-text-property 0 'time-of-day entry))
          (hours       (if time-of-day
-                          (format "/%02dh —/" (floor (/ time-of-day 100)))
-                        "     "))
+                          (format "*%02dh* — " (floor (/ time-of-day 100)))
+                        ""))
          (minutes     (if time-of-day
                           (% time-of-day 100) -1))
          (duration    (get-text-property 0 'duration entry)))
-    (insert (format "%s %s\n" hours text))))
+    (insert (format "%s%s\n" hours text))))
 
 
 ;;;###autoload
@@ -485,14 +493,14 @@ for efficiency."
             (add-to-list 'entries entry))))
 
     ;; Sort entries
-    (setq entries (funcall nano-agenda-sort-function entries))
+    (setq entries (sort entries nano-agenda-sort-function))
 
     ;; Display entries
     (let ((limit (if (< (length entries) 6) 6 4)))
       (dolist (entry (cl-subseq entries 0 (min limit (length entries))))
         (nano-agenda-display-entry entry))
       (if (> (length entries) limit)
-          (insert (format "/+%S non-displayed event(s)/" (- (length entries) limit))))))
+          (insert (format "+%S non-displayed event(s)" (- (length entries) limit))))))
   
     (goto-char (point-min)))
 
