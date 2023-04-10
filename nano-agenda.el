@@ -148,7 +148,7 @@ Return a value between 0 and 1."
          (blue (/ (caddr values) 256.0)))
     (/ (+ (* .2126 red) (* .7152 green) (* .0722 blue)) 255)))
 
-(defcustom nano-agenda-palette 'blue-grey
+(defcustom nano-agenda-palette 'amber
   "Background colors to use to highlight a day in calendar
   view according to busy level."
   :type `(choice (const red)    (const pink)  (const purple)      (const deep-purple)
@@ -448,7 +448,6 @@ Returns entries in `time-of-day' order."
     (setq mode-line-format nil)
     (nano-agenda-update)))
 
-
 (defun nano-agenda-update ()
   "Update calendar and agenda according to selected date."
   
@@ -620,8 +619,8 @@ for efficiency."
 
                ;; Slow
                (level (nano-agenda--busy-level date))
-               (level (min (length nano-agenda-busy-foregrounds) level))
                (backgrounds (alist-get nano-agenda-palette nano-agenda-palettes))
+               (level (min (length backgrounds) level))
                (background (nth (- level 1) backgrounds))
                (foreground (if (< (nano-agenda-color-luminance background) 0.5)
                                "white" "black"))
