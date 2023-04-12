@@ -422,16 +422,16 @@ Returns entries in `time-of-day' order."
   (let* ((is-deadline (string-equal (get-text-property 0 'type entry) "deadline"))
          (text (get-text-property 0 'txt entry))
          (text (replace-regexp-in-string ":.*:" "" text))
+         (text (org-link-display-format text))
          (text (string-trim text))
          ;; (time (get-text-property 0 'time entry))
          (time-of-day (get-text-property 0 'time-of-day entry))
          (hours (when time-of-day (floor (/ time-of-day 100))))
          (minutes (when time-of-day (% time-of-day 100) -1))
          (duration (get-text-property 0 'duration entry))
-         (text (substring-no-properties text))
          (text (if is-deadline
                    (propertize (concat "[D] " text) 'face 'org-imminent-deadline)
-                 text)))
+                 (propertize text 'face 'default))))
     (if hours
         (concat (propertize (format "%02dh" hours) 'face 'nano-agenda-time)
                 " - "
