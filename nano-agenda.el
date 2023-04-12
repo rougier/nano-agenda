@@ -38,6 +38,9 @@
 ;;
 ;;; NEWS:
 ;;
+;; Version 0.3.1
+;; - Specific face and marke for deadlines
+;;
 ;; Version 0.3.0
 ;; - Use of a single buffer for calendar + agenda
 ;; - Added palette choice for colorizing the calendar
