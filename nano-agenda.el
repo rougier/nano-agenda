@@ -82,7 +82,7 @@
   "Symbol to show current day"
   :group 'nano-agenda)
 
-(defcustom nano-agenda-deadline-symbol  "!"
+(defcustom nano-agenda-deadline-symbol "!"
   "Symbol to show a deadline in calendar"
   :group 'nano-agenda)
 
@@ -399,8 +399,9 @@ behavior is to split vertically current window.
 (defun nano-agenda-select-entry (entry &optional date)
   "Function to decide whether an entry is
 displayed/counted. Default behavior is to select all entries."
-
-  (not (string-search ":CANCELLED:" entry)))
+  (let ((type (get-text-property 0 'type entry)))
+    (and (not (string-equal type "upcoming-deadline"))
+         (not (string-search ":CANCELLED:" entry)))))
 
 (defun nano-agenda-default-sort-function (entry-1 entry-2)
   "Function to decide the order ENTRIES will be shown to the user.
@@ -415,14 +416,19 @@ Returns entries in `time-of-day' order."
 (defun nano-agenda-format-entry (entry)
   "Function to display a specific (org) entry"
 
-  (let* ((text (get-text-property 0 'txt entry))
+  (let* ((is-deadline (string-equal (get-text-property 0 'type entry) "deadline"))
+         (text (get-text-property 0 'txt entry))
          (text (replace-regexp-in-string ":.*:" "" text))
          (text (string-trim text))
          ;; (time (get-text-property 0 'time entry))
          (time-of-day (get-text-property 0 'time-of-day entry))
          (hours (when time-of-day (floor (/ time-of-day 100))))
          (minutes (when time-of-day (% time-of-day 100) -1))
-         (duration (get-text-property 0 'duration entry)))
+         (duration (get-text-property 0 'duration entry))
+         (text (substring-no-properties text))
+         (text (if is-deadline
+                   (propertize (concat "[D] " text) 'face 'org-imminent-deadline)
+                 text)))
     (if hours
         (concat (propertize (format "%02dh" hours) 'face 'nano-agenda-time)
                 " - "
@@ -555,7 +561,7 @@ for efficiency."
     (setq entries (sort entries nano-agenda-sort-function))
 
     ;; Display entries
-    (let ((limit (if (< (length entries) 7) 7 4)))
+    (let ((limit (if (< (length entries) 7) 7 5)))
       (dolist (entry (cl-subseq entries 0 (min limit (length entries))))
         (insert (concat "   "
                         (nano-agenda-format-entry entry)))
