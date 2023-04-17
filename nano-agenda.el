@@ -38,9 +38,11 @@
 ;;
 ;;; NEWS:
 ;;
+;; Version 0.3.2
+;; - Possibiliy to select and edit entries
+;;
 ;; Version 0.3.1
 ;; - Specific face and marker for deadlines
-;; - Possibiliy to select and edit entries
 ;;
 ;; Version 0.3.0
 ;; - Use of a single buffer for calendar + agenda
