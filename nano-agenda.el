@@ -1,6 +1,6 @@
 ;;; nano-agenda.el --- N Λ N O agenda -*- lexical-binding: t -*-
 
-;; Copyright (C) 2021 Free Software Foundation, Inc.
+;; Copyright (C) 2021-2023 Free Software Foundation, Inc.
 
 ;; Maintainer: Nicolas P. Rougier <Nicolas.Rougier@inria.fr>
 ;; URL: https://github.com/rougier/nano-agenda
@@ -39,7 +39,8 @@
 ;;; NEWS:
 ;;
 ;; Version 0.3.1
-;; - Specific face and marke for deadlines
+;; - Specific face and marker for deadlines
+;; - Possibiliy to select and edit entries
 ;;
 ;; Version 0.3.0
 ;; - Use of a single buffer for calendar + agenda
@@ -78,6 +79,12 @@
 (defvar nano-agenda--current-selection (current-time)
   "Current selected date")
 
+(defvar nano-agenda--entry-overlay nil
+  "Current selected date")
+
+(defvar nano-agenda--entry-select-mode nil
+  "Flag for entry selection mode")
+
 (defvar nano-agenda--busy-levels (list)
   "Cached list of (date busy-level) for internal use")
 
@@ -89,12 +96,16 @@
   "Symbol to show a deadline in calendar"
   :group 'nano-agenda)
 
+(defcustom nano-agenda-separation "  "
+  "Separation string between calenda and agenda entries"
+  :group 'nano-agenda)
+
 (defcustom nano-agenda-sort-function #'nano-agenda-default-sort-function
   "Function to sort a day's entries.
 This function takes an entries list and returns the list in the desired order."
   :group 'nano-agenda)
 
-(defcustom nano-agenda-select-entry-predicate #'nano-agenda-select-entry
+(defcustom nano-agenda-filter-entry-predicate #'nano-agenda-filter-entry
   "Predicate to decide if entry will be shown in the nano-agenda buffer.
 This function takes an entry and the selected date. Returns a value if the entry
 should be shown, otherwise, returns nil."
@@ -246,6 +257,14 @@ Return a value between 0 and 1."
         (years (or years 0)))
     (nano-agenda-date-inc date (- days) (- months) (- years))))
 
+(defvar nano-agenda-hook nil
+  "Normal hook run after agenda is build")
+
+(defvar nano-agenda-update-hook nil
+  "Normal hook run after agenda is updated")
+
+(defvar nano-agenda-entry-edit-hook nil
+  "Normal hook run after the editing buffer is shown")
 
 (defun nano-agenda-date-day (date)
   "Return DATE day of month (1-31)."
@@ -292,62 +311,97 @@ Return a value between 0 and 1."
   (nano-agenda-date-dec (nano-agenda-date-today) 1 0 0))
 
 (defun nano-agenda-forward-day ()
+  "Move to next day in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-inc nano-agenda--current-selection 1))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection
+          (nano-agenda-date-inc nano-agenda--current-selection 1))
+    (nano-agenda-update)))
 
 (defun nano-agenda-backward-day ()
+  "Move to previous day in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-dec nano-agenda--current-selection 1))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection
+          (nano-agenda-date-dec nano-agenda--current-selection 1))
+    (nano-agenda-update)))
 
 (defun nano-agenda-forward-week ()
+  "Move to next week in calendar or next entry when
+entry-select-mode is active"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-inc nano-agenda--current-selection 7))
-  (nano-agenda-update))
+  (if nano-agenda--entry-select-mode
+      (nano-agenda-goto-next-entry)
+    (progn (setq nano-agenda--current-selection
+                 (nano-agenda-date-inc nano-agenda--current-selection 7))
+           (nano-agenda-update))))
 
 (defun nano-agenda-backward-week ()
+  "Move to previous week in calendar or previous entry when
+entry-select-mode is active"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-dec nano-agenda--current-selection 7))
-  (nano-agenda-update))
+  (if nano-agenda--entry-select-mode
+      (nano-agenda-goto-prev-entry)
+    (progn
+      (setq nano-agenda--current-selection
+            (nano-agenda-date-dec nano-agenda--current-selection 7))
+      (nano-agenda-update))))
 
 (defun nano-agenda-forward-month ()
+  "Move to next month in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-inc nano-agenda--current-selection 0 1))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection
+          (nano-agenda-date-inc nano-agenda--current-selection 0 1))
+    (nano-agenda-update)))
 
 (defun nano-agenda-backward-month ()
+  "Move to previous month in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-dec nano-agenda--current-selection 0 1))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection
+          (nano-agenda-date-dec nano-agenda--current-selection 0 1))
+    (nano-agenda-update)))
   
 (defun nano-agenda-forward-year ()
+  "Move to next year in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-inc nano-agenda--current-selection 0 0 1))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection
+          (nano-agenda-date-inc nano-agenda--current-selection 0 0 1))
+    (nano-agenda-update)))
     
 (defun nano-agenda-backward-year ()
+  "Move to previous year in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection
-        (nano-agenda-date-dec nano-agenda--current-selection 0 0 1))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection
+          (nano-agenda-date-dec nano-agenda--current-selection 0 0 1))
+    (nano-agenda-update)))
 
 (defun nano-agenda-goto-today ()
+  "Goto current day in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection (nano-agenda-date-today))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection (nano-agenda-date-today))
+    (nano-agenda-update)))
 
 (defun nano-agenda-goto (&optional date)
+  "Goto given DATE (default today) in calendar"
+  
   (interactive)
-  (setq nano-agenda--current-selection (or date (nano-agenda-date-today)))
-  (nano-agenda-update))
+  (unless nano-agenda--entry-select-mode
+    (setq nano-agenda--current-selection (or date (nano-agenda-date-today)))
+    (nano-agenda-update)))
 
 (define-minor-mode nano-agenda-mode
   "Minor mode for nano-agenda."
@@ -360,12 +414,14 @@ Return a value between 0 and 1."
             (,(kbd "<S-right>") . nano-agenda-forward-month)
             (,(kbd "<S-up>")    . nano-agenda-backward-year)
             (,(kbd "<S-down>")  . nano-agenda-forward-year)
+            (,(kbd "<tab>")     . nano-agenda-toggle-entry-select-mode)
+            (,(kbd "<return>")  . org-agenda-goto)
             (,(kbd "r")         . nano-agenda-refresh)
             (,(kbd ".")         . nano-agenda-goto-today)
             (,(kbd "t")         . nano-agenda-goto-today)
             (,(kbd "C-g")       . nano-agenda-kill)
             (,(kbd "q")         . nano-agenda-kill)
-            (,(kbd "<return>")  . nano-agenda-kill)
+            ;; (,(kbd "<return>")  . nano-agenda-kill)
             (,(kbd "<escape>")  . nano-agenda-kill))
 
   (when nano-agenda-mode
@@ -399,7 +455,7 @@ behavior is to split vertically current window.
     (or agenda-window (split-window nil -10 'below))))
 
 
-(defun nano-agenda-select-entry (entry &optional date)
+(defun nano-agenda-filter-entry (entry &optional date)
   "Function to decide whether an entry is
 displayed/counted. Default behavior is to select all entries."
   (let ((type (get-text-property 0 'type entry)))
@@ -420,11 +476,12 @@ Returns entries in `time-of-day' order."
   "Function to display a specific (org) entry"
 
   (let* ((is-deadline (string-equal (get-text-property 0 'type entry) "deadline"))
-         (text (get-text-property 0 'txt entry))
+         (org-marker (get-text-property 0 'org-marker entry))
+         (text (propertize (get-text-property 0 'txt entry)
+                           'org-marker org-marker))
          (text (replace-regexp-in-string ":.*:" "" text))
          (text (org-link-display-format text))
          (text (string-trim text))
-         ;; (time (get-text-property 0 'time entry))
          (time-of-day (get-text-property 0 'time-of-day entry))
          (hours (when time-of-day (floor (/ time-of-day 100))))
          (minutes (when time-of-day (% time-of-day 100) -1))
@@ -447,15 +504,19 @@ Returns entries in `time-of-day' order."
   
   (let* ((agenda-buffer "*nano-agenda*")
          (agenda-window (nano-agenda-select-window)))
+    (setq nano-agenda--entry-overlay nil)
+    (setq nano-agenda--entry-select-mode nil)
     (select-window agenda-window)
     (switch-to-buffer agenda-buffer)
-    (toggle-truncate-lines 1)
+    (let ((message-log-max nil)
+          (inhibit-message t))
+      (toggle-truncate-lines 1))
     (set-window-dedicated-p agenda-window t)
     (set-window-margins agenda-window 2 2)
     (nano-agenda-mode t)
-    ;; (setq header-line-format nil)
-    (setq mode-line-format nil)
-    (nano-agenda-update)))
+    (nano-agenda-update)
+    (show-paren-local-mode -1)
+    (run-hooks 'nano-agenda-hook)))
 
 (defun nano-agenda-update ()
   "Update calendar and agenda according to selected date."
@@ -466,7 +527,9 @@ Returns entries in `time-of-day' order."
       (goto-char (point-min))
       (nano-agenda--populate-calendar)
       (goto-char (point-min))
-      (nano-agenda--populate-agenda))))
+      (nano-agenda--populate-agenda)
+      (set-window-margins (get-buffer-window) 2 2))
+    (run-hooks 'nano-agenda-update-hook)))
 
 (defun nano-agenda-kill ()
   "Kill buffers and windows associated with the agenda."
@@ -516,7 +579,7 @@ for efficiency."
           (dolist (entry (org-agenda-get-day-entries file date))
             (when (string-equal (get-text-property 0 'type entry) "deadline")
               (setq deadline t))
-            (when (funcall nano-agenda-select-entry-predicate entry date)
+            (when (funcall nano-agenda-filter-entry-predicate entry date)
                 (setq level (+ level 1)))))
         (add-to-list 'nano-agenda--busy-levels `(,date ,level ,deadline))
         level))))
@@ -538,7 +601,7 @@ for efficiency."
     ;; Header (literal date + holidays (if any))
     (forward-line)
     (end-of-line)
-    (insert "   ")
+    (insert nano-agenda-separation)
     (insert (propertize (format-time-string "%A %-e %B %Y" selected)
                         'face 'nano-agenda-current-day))
     (end-of-line)
@@ -557,7 +620,7 @@ for efficiency."
     ;; Collect entries from agenda files.
     (dolist (file (org-agenda-files))
       (dolist (entry (org-agenda-get-day-entries file date))
-        (if (funcall nano-agenda-select-entry-predicate entry date)
+        (if (funcall nano-agenda-filter-entry-predicate entry date)
             (add-to-list 'entries entry))))
 
     ;; Sort entries
@@ -566,15 +629,76 @@ for efficiency."
     ;; Display entries
     (let ((limit (if (< (length entries) 7) 7 5)))
       (dolist (entry (cl-subseq entries 0 (min limit (length entries))))
-        (insert (concat "   "
-                        (nano-agenda-format-entry entry)))
+        (insert nano-agenda-separation)
+        (let* ((org-marker (get-text-property 0 'org-marker entry))
+               (entry-text (nano-agenda-format-entry entry))
+               (entry-beg (- (point) 1))
+               (entry-end (+ (point) (length entry-text) 1)))
+          (insert (propertize (concat entry-text " ")
+                              'overlay (cons entry-beg entry-end)))
+          ;; org-agenda-goto check at beginning of line for an org marker
+          ;; We thus need to propertize the full line with the org-marker.
+          (add-text-properties (line-beginning-position) (line-end-position)
+                               `(org-marker ,org-marker)))
         (forward-line)
         (end-of-line))
       (if (> (length entries) limit)
-          (insert (concat "   "
+          (insert (concat nano-agenda-separation
                   (format "+%S non-displayed event(s)" (- (length entries) limit))))))
   
     (goto-char (point-min))))
+
+
+(defun nano-agenda-select-entry ()
+  (interactive)
+  (let* ((match (text-property-search-forward 'overlay nil nil t)))
+    (when match
+      (let* ((bounds (prop-match-value match))
+             (overlay (or nano-agenda--entry-overlay
+                          (make-overlay (car bounds) (cdr bounds)))))
+        (setq nano-agenda--entry-overlay overlay)
+        (move-overlay overlay (car bounds) (cdr bounds))
+        (overlay-put overlay 'face 'nano-agenda-selected)))))
+
+(defun nano-agenda-toggle-entry-select-mode ()
+  "Toggle entry select mode"
+
+  (interactive)
+  (if nano-agenda--entry-select-mode
+      (progn
+        (setq nano-agenda--entry-select-mode nil)
+        (nano-agenda-update)
+        (when nano-agenda--entry-overlay
+          (overlay-put nano-agenda--entry-overlay 'face 'default)))
+    (progn
+      (setq nano-agenda--entry-select-mode t)
+      (nano-agenda-update)
+      (nano-agenda-goto-next-entry))))
+
+(defun nano-agenda-goto-next-entry ()
+  "Select next entry (when in entry select mode)"
+  (interactive)
+  (when nano-agenda--entry-select-mode
+    (when-let* ((match (text-property-search-forward 'overlay nil nil t))
+                (bounds (prop-match-value match))
+                (overlay (or nano-agenda--entry-overlay
+                             (make-overlay (car bounds) (cdr bounds)))))
+      (setq nano-agenda--entry-overlay overlay)
+      (move-overlay overlay (car bounds) (cdr bounds))
+      (overlay-put overlay 'face 'nano-agenda-selected))))
+
+(defun nano-agenda-goto-prev-entry ()
+  "Select prev entry (when in entry select mode)"
+  
+  (interactive)
+  (when nano-agenda--entry-select-mode
+    (when-let* ((match (text-property-search-backward 'overlay nil nil t))
+                (bounds (prop-match-value match))
+                (overlay (or nano-agenda--entry-overlay
+                             (make-overlay (car bounds) (cdr bounds)))))
+      (setq nano-agenda--entry-overlay overlay)
+      (move-overlay overlay (car bounds) (cdr bounds))
+      (overlay-put overlay 'face 'nano-agenda-selected))))
 
 
 (defun nano-agenda--populate-calendar ()
@@ -646,7 +770,10 @@ for efficiency."
                (is-weekend (or (= (nano-agenda-date-dow date) 0)
                                (= (nano-agenda-date-dow date) 6)))
                (face (cond ;; (is-selected-today 'nano-agenda-selected-today)
-                           (is-selected       'nano-agenda-selected)
+                           ;;(is-selected       'nano-agenda-selected)
+                           ((and is-selected
+                                 (not nano-agenda--entry-select-mode))
+                             'nano-agenda-selected)
                            ;; (is-today          'nano-agenda-today)
                            (is-outday         'nano-agenda-outday)
                            ((> level 0)       `(:foreground ,foreground :background ,background ))
