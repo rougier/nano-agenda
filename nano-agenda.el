@@ -704,19 +704,34 @@ for efficiency."
       (overlay-put overlay 'face 'nano-agenda-selected))))
 
 
-(defun nano-agenda--populate-calendar ()
-  "Populate the calendar according to the month of the current selected date."
+(defun nano-agenda--populate-calendar (&optional location)
+  "Populate the calendar according to the month of the current selected date. LOCATION indicates if calenader is to be inserted on the left or on the right of the buffer."
 
-  ;; Header with prev/next buttons
-  ;; -----------------------------
-  (let* ((selected nano-agenda--current-selection)
-         (map-left (make-sparse-keymap))
-         (map-right (make-sparse-keymap)))
-
+  (let* ((selected  nano-agenda--current-selection)
+         (today     (nano-agenda-date-today))
+         (day       (nano-agenda-date-day selected))
+         (month     (nano-agenda-date-month selected))
+         (year      (nano-agenda-date-year selected))
+         (start     (nano-agenda-date year month 1))
+         (dow       (mod (+ 6 (nano-agenda-date-dow start)) 7))
+         (start     (nano-agenda-date-dec start dow))
+         (map-left  (make-sparse-keymap))
+         (map-right (make-sparse-keymap))
+         (right     (eq location 'right))
+         (prefix    (if right
+                        (propertize " " 'display '(space :align-to (- right 22)))
+                        "")))
+  
+    ;; Header with prev/next buttons
+    ;; -----------------------------
     (define-key map-left (kbd "<down-mouse-1>") #'nano-agenda-backward-month)
     (define-key map-right (kbd "<down-mouse-1>") #'nano-agenda-forward-month)
 
-    (insert "\n")
+    (if (not (eq (forward-line) 0))
+        (insert "\n"))
+    (cond (right (end-of-line) (insert prefix))
+          (t     (beginning-of-line)))
+
     (insert (propertize "<" 'face 'nano-agenda-button
                         'mouse-face 'nano-agenda-mouse
                         'help-echo "Previous month"
@@ -730,78 +745,86 @@ for efficiency."
                         'mouse-face 'nano-agenda-mouse
                         'help-echo "Next month"
                         'keymap map-right))
-    (insert "\n")
+
+    ;; Week day name
+    ;; -----------------------------
+
+    (if (not (eq (forward-line) 0))
+        (insert "\n"))
+    (cond (right (end-of-line) (insert prefix))
+          (t     (beginning-of-line)))
     (insert (propertize "Mo Tu We Th Fr "
                         'face 'nano-agenda-day-name))
     (insert (propertize "Sa Su "
                         'face 'nano-agenda-day-name))
-    (insert "\n"))
-  
-  ;; Body with navigation keymap
-  ;; ---------------------------
-  (let* ((selected nano-agenda--current-selection)
-         (today    (nano-agenda-date-today))
-         (day      (nano-agenda-date-day selected))
-         (month    (nano-agenda-date-month selected))
-         (year     (nano-agenda-date-year selected))
-         (start    (nano-agenda-date year month 1))
-         (dow      (mod (+ 6 (nano-agenda-date-dow start)) 7))
-         (start    (nano-agenda-date-dec start dow)))
+    (when (not (eq (forward-line) 0))
+        (insert "\n"))
 
+  
+    ;; Body with navigation keymap
+    ;; ---------------------------
     (dotimes (row 6)
+
+      (cond (right (end-of-line)
+                   (insert prefix))
+            (t     (beginning-of-line)))
+  
       (dotimes (col 7)
         (let* ((day (+ (* row 7) col))
                (date (nano-agenda-date-inc start day))
 
-               ;; Slow
-               (level (nano-agenda--busy-level date))
-               (backgrounds (alist-get nano-agenda-palette nano-agenda-palettes))
-               (level (min (length backgrounds) level))
-               (background (nth (- level 1) backgrounds))
-               (foreground (if (< (nano-agenda-color-luminance background) 0.5)
-                               "white" "black"))
-               (map (make-sparse-keymap))
-               (is-today (nano-agenda-date-is-today date))
-               (has-deadline (nano-agenda--has-deadline date))
-               (is-selected (nano-agenda-date-equal date selected))
-               (is-selected-today (and is-selected is-today))
-               (is-outday (not (= (nano-agenda-date-month date) month)))
-               (is-holidays (calendar-check-holidays (list
-                                                      (nano-agenda-date-month date)
-                                                      (nano-agenda-date-day date)
-                                                      (nano-agenda-date-year date))))
-               (is-weekend (or (= (nano-agenda-date-dow date) 0)
-                               (= (nano-agenda-date-dow date) 6)))
-               (face (cond ;; (is-selected-today 'nano-agenda-selected-today)
-                           ;;(is-selected       'nano-agenda-selected)
-                           ((and is-selected
-                                 (not nano-agenda--entry-select-mode))
-                             'nano-agenda-selected)
-                           ;; (is-today          'nano-agenda-today)
-                           (is-outday         'nano-agenda-outday)
-                           ((> level 0)       `(:foreground ,foreground :background ,background ))
-                           (is-weekend        'nano-agenda-weekend)
-                           (is-holidays       'nano-agenda-holidays)
-                           (t                 'nano-agenda-default))))
+             ;; Slow
+             (level (nano-agenda--busy-level date))
+             (backgrounds (alist-get nano-agenda-palette nano-agenda-palettes))
+             (level (min (length backgrounds) level))
+             (background (nth (- level 1) backgrounds))
+             (foreground (if (< (nano-agenda-color-luminance background) 0.5)
+                             "white" "black"))
+             (map (make-sparse-keymap))
+             (is-today (nano-agenda-date-is-today date))
+             (has-deadline (nano-agenda--has-deadline date))
+             (is-selected (nano-agenda-date-equal date selected))
+             (is-selected-today (and is-selected is-today))
+             (is-outday (not (= (nano-agenda-date-month date) month)))
+             (is-holidays (calendar-check-holidays (list
+                                                    (nano-agenda-date-month date)
+                                                    (nano-agenda-date-day date)
+                                                    (nano-agenda-date-year date))))
+             (is-weekend (or (= (nano-agenda-date-dow date) 0)
+                             (= (nano-agenda-date-dow date) 6)))
+             (face (cond ;; (is-selected-today 'nano-agenda-selected-today)
+                     ;;(is-selected       'nano-agenda-selected)
+                     ((and is-selected
+                           (not nano-agenda--entry-select-mode))
+                      'nano-agenda-selected)
+                     ;; (is-today          'nano-agenda-today)
+                     (is-outday         'nano-agenda-outday)
+                     ((> level 0)       `(:foreground ,foreground :background ,background ))
+                     (is-weekend        'nano-agenda-weekend)
+                     (is-holidays       'nano-agenda-holidays)
+                     (t                 'nano-agenda-default))))
+        
+        (define-key map (kbd "<down-mouse-1>")
+          `(lambda() (interactive) (nano-agenda-goto ,date)))
+        
+        (insert (propertize (format "%2d" (nano-agenda-date-day date))
+                            'face face
+                            'mouse-face (cond (is-selected-today 'nano-agenda-selected-today)
+                                              (is-selected       'nano-agenda-selected)
+                                              (t                 'nano-agenda-mouse))
+                            'help-echo (format "%s%s" (format-time-string "%A %-e %B %Y" date)
+                                               (if is-holidays (format " (%s)" (nth 0 is-holidays))
+                                                   ""))
+                            'keymap map))
+        (if (< col 7)
+            (insert (propertize (cond (is-today nano-agenda-today-symbol)
+                                      (has-deadline nano-agenda-deadline-symbol)
+                                      (t " "))
+                                'face face)))))
+    (when (< row 5)
+      (when (not (eq (forward-line) 0))
+        (insert "\n"))))))
 
-          (define-key map (kbd "<down-mouse-1>")
-            `(lambda() (interactive) (nano-agenda-goto ,date)))
-
-            (insert (propertize (format "%2d" (nano-agenda-date-day date))
-                                'face face
-                                'mouse-face (cond (is-selected-today 'nano-agenda-selected-today)
-                                                  (is-selected       'nano-agenda-selected)
-                                                  (t                 'nano-agenda-mouse))
-                                'help-echo (format "%s%s" (format-time-string "%A %-e %B %Y" date)
-                                                   (if is-holidays (format " (%s)" (nth 0 is-holidays))
-                                                     ""))
-                                'keymap map))
-            (if (< col 7)
-                (insert (propertize (cond (is-today nano-agenda-today-symbol)
-                                          (has-deadline nano-agenda-deadline-symbol)
-                                          (t " "))
-                                    'face face)))))
-      (if (< row 5) (insert "\n")))))
 
 (provide 'nano-agenda)
 ;;; nano-agenda.el ends here
