@@ -480,7 +480,8 @@ Returns entries in `time-of-day' order."
   (let* ((is-deadline (string-equal (get-text-property 0 'type entry) "deadline"))
          (org-marker (get-text-property 0 'org-marker entry))
          (text (propertize (get-text-property 0 'txt entry)
-                           'org-marker org-marker))
+                           'org-marker org-marker
+                           'line-prefix nil))
          (text (replace-regexp-in-string ":.*:" "" text))
          (text (org-link-display-format text))
          (text (string-trim text))
