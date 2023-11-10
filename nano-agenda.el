@@ -272,9 +272,6 @@ Return a value between 0 and 1."
                  (const viridis) (const magma) (const inferno))
   :group 'nano-agenda-faces)
 
-(defvar nano-agenda-hook nil
-  "Normal hook run after agenda is build")
-
 (defvar nano-agenda-update-hook nil
   "Normal hook run after agenda is updated")
 
@@ -1014,7 +1011,6 @@ Occupancies are cached for efficiency."
       (goto-char (point-min))
       (nano-agenda--insert-clock))
     (goto-char (point-min))
-    (nano-agenda-mode 1)
     (run-hooks nano-agenda-update-hook)))
 
 (defun nano-agenda-quit ()
@@ -1034,7 +1030,7 @@ regular update."
   (switch-to-buffer (get-buffer-create nano-agenda-buffer-name))
   (set-window-dedicated-p nil t)
   (nano-agenda-update)
-  (run-hooks nano-agenda-hook))
+  (nano-agenda-mode 1))
 
 (define-minor-mode nano-agenda-mode
   "Minor mode for nano-agenda day view."
