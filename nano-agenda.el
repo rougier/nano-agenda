@@ -438,14 +438,20 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
               (end (encode-time 0 (+ minutes (floor duration)) hour day month year)))
     (cons start end)))
 
+
 (defun nano-agenda--entry-link (entry)
   "Return any link associated with ENTRY (if any)"
 
   (let* ((txt (get-text-property 0 'txt entry))
          (marker (get-text-property 0 'org-marker entry))
          (location (org-entry-get marker "LOCATION"))
-         (url (if (and (stringp location) (> (length location) 0))
-                  location
+         (property-url (catch 'valid
+                         (dolist (property nano-agenda-link-properties)
+                           (let ((url (org-entry-get marker property)))
+                             (when (and (stringp url) (> (length url) 0))
+                               (throw 'valid url))))))
+         (url (if property-url
+                  property-url
                 (save-match-data
                   (if (string-match org-link-bracket-re txt)
                       (match-string 1 txt)))))
