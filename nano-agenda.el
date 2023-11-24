@@ -98,6 +98,11 @@
   :group 'nano-agenda
   :type 'function)
 
+(defcustom nano-agenda-view-mode 'day
+  "Agenda view mode (day or week)"
+  :group 'nano-agenda
+  :type '(choice (const day) (const week)))
+
 (defcustom nano-agenda-link-properties '("LOCATION" "LINK")
   "List of property names that can possibly store a link."
 
@@ -438,7 +443,6 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
               (end (encode-time 0 (+ minutes (floor duration)) hour day month year)))
     (cons start end)))
 
-
 (defun nano-agenda--entry-link (entry)
   "Return any link associated with ENTRY (if any)"
 
@@ -589,7 +593,6 @@ FACE. DATE is expressed as WEEK (literal) and week number"
         (day (format-time-string "  %d" date)))
     (nano-agenda--svg-icon week day face)))
 
-
 (defun nano-agenda--svg-icon-day (date &optional face)
   "Return a two parts SVG tag (top . bottom) with given DATE and
 FACE. DATE is expressed as day name and day"
@@ -627,6 +630,12 @@ FACE. DATE is expressed as day name and day"
                    'display (list (list 'slice 0  char-height svg-width char-height) image)
                    'line-height t)))))
 
+(defun nano-agenda-forward-line (n)
+  "Move N lines forward, add newlines if necessary"
+
+  (let ((n (forward-line n)))
+    (insert (make-string n ?\n))))
+
 (defun nano-agenda--entry-format (entry &optional compact)
   "Return a formatted org agenda entry in compact form if COMPACT is t."
   
@@ -643,7 +652,7 @@ FACE. DATE is expressed as day name and day"
          (header (nano-agenda--entry-header entry))
          
          (header-face   'default)
-         (time-face     (if is-conflict '(warning bold) 'bold))
+         (time-face     (if is-conflict 'warning 'default))
          (deadline-face 'error-i)
          (todo-face     'org-todo-i)
          (tag-face      (when tag (cdr tag)))
@@ -827,30 +836,35 @@ Occupancies are cached for efficiency."
          (holidays (nano-agenda-holidays org-date))
          (anniversaries (nano-agenda-anniversaries org-date))
          (width (- (window-width) 24 3 9))
-         (subtitle (or anniversaries
-                       holidays
-                       (format-time-string "Week %W" date)))
+;;         (subtitle (or anniversaries
+;;                       holidays
+;;                       (format-time-string "Week %W" date)))
+         (subtitle (or anniversaries holidays))       
          (subtitle (when subtitle (truncate-string-to-width subtitle width nil nil "…")))
          (entries (nano-agenda-entries org-date))
          (separation "  ")
          (entry-marker  " ")
          (padding (propertize " " 'display '(space :align-to (+ left 22))))
-         (title (format-time-string "%A %d %B %Y" date)))
+         (title (format-time-string "%A %d %B %Y" date))
+         (week (format-time-string " (Week %W)" date)))
 
     (goto-char (line-end-position))
     (insert padding) (insert separation)
     (insert (propertize title 'face 'nano-agenda-header-title))
-    (when (= (forward-line) 1) (insert "\n"))
-
+    (insert (propertize week 'face 'nano-agenda-header-subtitle))
+    (nano-agenda-forward-line 1)    
     (goto-char (line-end-position))
     (insert padding) (insert separation)
-    (insert (propertize subtitle 'face 'nano-agenda-header-subtitle))
+    (when subtitle
+      (insert (propertize subtitle 'face 'nano-agenda-header-subtitle)))
+
+    (when (nano-agenda-date-equal nano-agenda-date date)
+      (setq nano-agenda--entry-index
+            (if (> (length entries) 0)
+                (mod nano-agenda--entry-index (length entries))
+              -1))
+      (setq nano-agenda--entry-marker nil))
     
-    (setq nano-agenda--entry-index
-          (if (> (length entries) 0)
-              (mod nano-agenda--entry-index (length entries))
-            -1))
-    (setq nano-agenda--entry-marker nil)
     (unless (overlayp nano-agenda--entry-overlay)
       (setq nano-agenda--entry-overlay (make-overlay (point-min) (point-min)))
       (overlay-put nano-agenda--entry-overlay 'face 'hl-line))
@@ -858,9 +872,10 @@ Occupancies are cached for efficiency."
     (dolist (i (number-sequence 0 (1- (length entries))))
       (let ((entry (nth i entries))
             (point nil)
-            (highlight (eq i nano-agenda--entry-index)))
-        (when (= (forward-line) 1)
-          (insert "\n"))
+            (highlight (and
+                        (nano-agenda-date-equal nano-agenda-date date)
+                        (eq i nano-agenda--entry-index))))
+        (nano-agenda-forward-line 1)
         (goto-char (line-end-position))
         (setq point (point))
         (insert padding)
@@ -874,14 +889,19 @@ Occupancies are cached for efficiency."
         (when highlight
           (move-overlay nano-agenda--entry-overlay point (line-end-position)))))))
 
+(defun nano-agenda--date (date days months years)
+   "Get date + DAYS day & MONTH months & YEARS years"
+
+   (let* ((date (decode-time date))
+          (day (nth 3 date))
+          (month (nth 4 date))
+          (year (nth 5 date)))
+     (encode-time 0 0 0 (+ day days) (+ month months) (+ year years))))
+
 (defun nano-agenda-goto-date (days months years)
    "Go to current date + DAYS day & MONTH months & YEARS years"
 
-   (let* ((date (decode-time nano-agenda-date))
-          (day (nth 3 date))
-          (month (nth 4 date))
-          (year (nth 5 date))
-          (date (encode-time 0 0 0 (+ day days) (+ month months) (+ year years))))
+   (let* ((date (nano-agenda--date nano-agenda-date days months years)))
      (setq nano-agenda-date date)
      (setq nano-agenda--entry-index 0)
      (setq nano-agenda--entry-marker nil)
@@ -1003,6 +1023,20 @@ Occupancies are cached for efficiency."
    (interactive)
    (nano-agenda-goto-date 0 +1 0))
 
+(defun nano-agenda-view-mode-day ()
+  "Set agenda view mode to day"
+
+  (interactive)
+  (setq nano-agenda-view-mode 'day)
+  (nano-agenda-update))
+
+(defun nano-agenda-view-mode-week ()
+  "Set agenda view mode to week"
+
+  (interactive)
+  (setq nano-agenda-view-mode 'week)
+  (nano-agenda-update))
+
 (defun nano-agenda-update ()
   "Update agenda"
 
@@ -1012,10 +1046,23 @@ Occupancies are cached for efficiency."
     (setq nano-agenda--entry-is-now nil)
     (nano-agenda--insert-calendar)
     (goto-char (point-min))
-    (nano-agenda--insert-agenda nano-agenda-date)
+
+  (let* ((date (decode-time nano-agenda-date))
+         (day (nth 3 date))
+         (month (nth 4 date))
+         (year (nth 5 date))
+         (day-of-week (mod (1- (calendar-day-of-week (list month day year))) 7))
+         (first-day-of-week (encode-time (list 0 0 0 (- day day-of-week) month year))))
+    (if (eq nano-agenda-view-mode 'week)
+        (dotimes (inc 7)
+          (nano-agenda--insert-agenda
+           (nano-agenda--date first-day-of-week inc 0 0))
+          (nano-agenda-forward-line 2))
+      (nano-agenda--insert-agenda nano-agenda-date)))
+   
     (when (stringp nano-agenda-clock-format)
       (goto-char (point-min))
-      (nano-agenda--insert-clock))
+      (nano-agenda--insert-clock))    
     (goto-char (point-min))
     (run-hooks nano-agenda-update-hook)))
 
@@ -1036,6 +1083,8 @@ regular update."
   (switch-to-buffer (get-buffer-create nano-agenda-buffer-name))
   (set-window-dedicated-p nil t)
   (nano-agenda-update)
+  (when (fboundp 'show-paren-local-mode)
+    (show-paren-local-mode 0))
   (nano-agenda-mode 1))
 
 (define-minor-mode nano-agenda-mode
@@ -1048,6 +1097,8 @@ regular update."
             (,(kbd "<return>")  . nano-agenda-edit-entry)
             (,(kbd "c")         . org-capture)
             (,(kbd "r")         . nano-agenda-update)
+            (,(kbd "d")         . nano-agenda-view-mode-day)
+            (,(kbd "w")         . nano-agenda-view-mode-week)
             (,(kbd "g")         . nano-agenda-update)
             (,(kbd "q")         . nano-agenda-quit)
             (,(kbd "<left>")    . nano-agenda-goto-prev-day)
