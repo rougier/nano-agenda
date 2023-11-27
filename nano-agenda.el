@@ -438,6 +438,9 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
   "Return the start and end time of ENTRY (if any)"
 
   (when-let* ((date (get-text-property 0 'date entry))
+              (date (if (numberp date)
+                        (calendar-gregorian-from-absolute date)
+                      date))
               (time-of-day (get-text-property 0 'time-of-day entry))
               (duration (get-text-property 0 'duration entry))
               (month (nth 0 date))
