@@ -109,6 +109,12 @@
   :group 'nano-agenda
   :type '(repeat string))
 
+(defcustom nano-agenda-note-properties '("NOTE" "NOTES")
+  "List of property names that can possibly store a note."
+
+  :group 'nano-agenda
+  :type '(repeat string))
+
 (defcustom nano-agenda-tags '(("LUNCH" . nano-popout-i)
                               ("ONLINE" . nano-salient)
                               ("TRAIN" . nano-critical-i)
@@ -448,7 +454,6 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
 
   (let* ((txt (get-text-property 0 'txt entry))
          (marker (get-text-property 0 'org-marker entry))
-         (location (org-entry-get marker "LOCATION"))
          (property-url (catch 'valid
                          (dolist (property nano-agenda-link-properties)
                            (let ((url (org-entry-get marker property)))
@@ -463,6 +468,18 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
     (when (member url-type '("http" "https"))
       url)))
 
+(defun nano-agenda--entry-note (entry)
+  "Return any note associated with ENTRY (if any)"
+
+  (let* ((txt (get-text-property 0 'txt entry))
+         (marker (get-text-property 0 'org-marker entry))
+         (note (catch 'valid
+                 (dolist (property nano-agenda-note-properties)
+                   (let ((note (org-entry-get marker property)))
+                     (when (and (stringp note) (> (length note) 0))
+                       (throw 'valid note)))))))
+    note))
+         
 (defun nano-agenda--entry-daterange (entry)
   "Return (count . total) if ENTRY has a date range spanning several days"
   
@@ -647,6 +664,7 @@ FACE. DATE is expressed as day name and day"
          (is-conflict (nano-agenda--entry-is-conflict entry))
          (is-deadline (nano-agenda--entry-is-deadline entry))
          (link (nano-agenda--entry-link entry))
+         (note (nano-agenda--entry-note entry))
          (tag (nano-agenda--entry-tags entry))
          (daterange (nano-agenda--entry-daterange entry))
          (header (nano-agenda--entry-header entry))
@@ -665,7 +683,8 @@ FACE. DATE is expressed as day name and day"
          (tag-align (if (and tag  nano-agenda-tags-align)
                         (propertize " " 'display `(space :align-to (- right 1 ,(length tag))))
                       " "))         
-         (header (propertize header 'face header-face))
+         (header (concat (if note " " "")
+                         (propertize header 'face header-face)))
          (prefix (cond (daterange
                         (cons (nano-agenda--svg-progress-bar
                                (car daterange) (cdr daterange) time-face) nil))
