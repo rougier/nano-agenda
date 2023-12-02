@@ -673,11 +673,10 @@ FACE. DATE is expressed as day name and day"
          (header (nano-agenda--entry-header entry))
          
          (header-face   'default)
-         (time-face     (if is-conflict 'warning 'default))
+         (time-face     (if is-conflict 'error 'default))
          (deadline-face 'error-i)
-         (todo-face     'org-todo-i)
+         (todo-face     'default-i) 
          (tag-face      (when tag (cdr tag)))
-         
          (tag           (when tag (car tag)))
          (tag (cond (link (nano-agenda--svg-tag "ONLINE" 'org-date-i link))
                     (tag  (nano-agenda--svg-tag tag tag-face))
