@@ -117,10 +117,9 @@
 
 (defcustom nano-agenda-tags '(("LUNCH" . nano-popout-i)
                               ("ONLINE" . nano-salient)
-                              ("TRAIN" . nano-critical-i)
-                              ("PLANE" . nano-critical-i)
-                              ("TRIP" . nano-critical-i)
-                              ("TRAIN" . nano-critical-i)
+                              ("TRAIN" . nano-salient-i)
+                              ("PLANE" . nano-salient-i)
+                              ("TRIP" . nano-salient-i)
                               ("PERSONAL" . nano-default))
   "Ordered list of (tags . face) that are shown in the agenda when present
 inside an entry. Any other tags are hidden."
