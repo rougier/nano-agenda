@@ -115,12 +115,17 @@
   :group 'nano-agenda
   :type '(repeat string))
 
-(defcustom nano-agenda-tags '(("LUNCH" . nano-popout-i)
-                              ("ONLINE" . nano-salient)
-                              ("TRAIN" . nano-salient-i)
-                              ("PLANE" . nano-salient-i)
-                              ("TRIP" . nano-salient-i)
-                              ("PERSONAL" . nano-default))
+(defcustom nano-agenda-tags '(("TRIP" . ("TRIP" . nano-critical-i))
+                              ("CONF" . ("CONF" . nano-faded))
+                              ("HYPERMONDES" . ("HOME" . nano-default))
+                              ("ADM" . ("ADM" . nano-default-i))
+                              ("COSO" . ("ADM" . nano-default-i))
+                              ("SCI" . ("SCI" . nano-salient-i))
+                              ("PHD" . ("SCI" . nano-salient-i))
+                              ("CZI" . ("DEV" . nano-faded-i))
+                              ("DEV" . ("DEV" . nano-salient-i))
+                              ("HOME" . ("HOME" . nano-default))
+                              ("TALK" . ("TALK" . nano-salient-i)))
   "Ordered list of (tags . face) that are shown in the agenda when present
 inside an entry. Any other tags are hidden."
   
