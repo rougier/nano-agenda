@@ -285,6 +285,9 @@ Return a value between 0 and 1."
 (defvar nano-agenda-update-hook nil
   "Normal hook run after agenda is updated")
 
+(defvar nano-agenda-header ""
+  "Header string to be inserted at the top of the agenda")
+
 (defvar nano-agenda-timer nil
   "Timer for updating agenda")
 
@@ -487,7 +490,8 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
   
   (let ((extra (get-text-property 0 'extra entry)))
     (save-match-data
-      (when (string-match "(\\([0-9]?\\)/\\([0-9]*\\)): " extra)
+      (when (and extra
+                 (string-match "(\\([0-9]?\\)/\\([0-9]*\\)): " extra))
         (cons (string-to-number (match-string 1 extra))
               (string-to-number (match-string 2 extra)))))))
 
@@ -502,7 +506,7 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
                 (dolist (tag agenda-tags)
                   (if (member tag entry-tags)
                     (throw 'found (assoc tag nano-agenda-tags)))))))
-    tag))
+    (when tag (cdr tag))))
 
 (defun nano-agenda--entry-is-deadline (entry)
   "Return t if ENTRY is a deadline"
@@ -655,6 +659,67 @@ FACE. DATE is expressed as day name and day"
   (let ((n (forward-line n)))
     (insert (make-string n ?\n))))
 
+
+(defun nano-agenda--entry-todo (entry)
+  "Create an icon button for ENTRY if it is a TODO."
+  
+  (let* ((marker (get-text-property 0 'org-marker entry))
+         (buffer (marker-buffer marker))
+         (pos (marker-position marker)))
+    (svg-lib-button "TODO"
+                    `(lambda ()
+                       (interactive)
+                       (with-current-buffer ,buffer
+                         (save-excursion
+                           (goto-char ,pos)
+                           (org-todo 'done))))
+                    "Mark entry as done"
+                    `(font-lock-comment-face . (:font-weight semi-bold :font-family "Roboto Mono")))))
+
+
+(defvar nano-agenda--entry-meeting-links nil
+  "Cached list for link buttons")
+
+(defun nano-agenda--entry-meeting-link (entry)
+  "Create an icon button for ENTRY if entry has a MEETING tag and a
+location link (as property). Else it returns an empty string."
+  
+  (let* ((tags (get-text-property 0 'tags entry))
+         (link (nano-agenda--entry-link entry)))
+    (unless (assoc link nano-agenda--entry-meeting-links)
+      (let ((button (if (and link (member "MEETING" tags))
+                        (concat (svg-lib-button "[bootstrap:people-fill]"
+                                                `(lambda () (interactive) (browse-url ,link))
+                                                (format "Connect to meeting (%s)"
+                                                        (url-domain (url-generic-parse-url link))))
+                                " ")
+                      "")))
+        (setq nano-agenda--entry-meeting-links
+              (add-to-list 'nano-agenda--entry-meeting-links (cons link button)))))
+    (cdr (assoc link nano-agenda--entry-meeting-links))))
+        
+
+(defvar nano-agenda--entry-meeting-notes nil
+  "Cached list for link buttons")
+
+(defun nano-agenda--entry-meeting-note (entry)
+  "Create an icon button for ENTRY if entry has a MEETING tag and a
+note link (as property). Else it returns an empty string."
+
+  (let* ((tags (get-text-property 0 'tags entry))
+         (link (nano-agenda--entry-note entry)))
+    (unless (assoc link nano-agenda--entry-meeting-notes)
+      (let ((button (if (and link (member "MEETING" tags))
+                        (concat (svg-lib-button "[bootstrap:text-left]"
+                                                `(lambda () (interactive) (browse-url ,link))
+                                                (format "Go to notes (%s)"
+                                                        (url-domain (url-generic-parse-url link))))
+                                " ")
+                      "")))
+        (setq nano-agenda--entry-meeting-notes
+              (add-to-list 'nano-agenda--entry-meeting-notes (cons link button)))))
+    (cdr (assoc link nano-agenda--entry-meeting-notes))))
+  
 (defun nano-agenda--entry-format (entry &optional compact)
   "Return a formatted org agenda entry in compact form if COMPACT is t."
   
@@ -672,29 +737,31 @@ FACE. DATE is expressed as day name and day"
          (header (nano-agenda--entry-header entry))
          
          (header-face   'default)
-         (time-face     (if is-conflict 'error 'default))
+         (time-face     (if is-conflict 'error 'nano-faded))
          (deadline-face 'error-i)
          (todo-face     'default-i) 
          (tag-face      (when tag (cdr tag)))
          (tag           (when tag (car tag)))
-         (tag (cond (link (nano-agenda--svg-tag "ONLINE" 'org-date-i link))
-                    (tag  (nano-agenda--svg-tag tag tag-face))
+         (tag (cond (tag (nano-agenda--svg-tag tag tag-face))
                     ( "")))
 
          (tag-align (if (and tag  nano-agenda-tags-align)
                         (propertize " " 'display `(space :align-to (- right 1 ,(length tag))))
                       " "))         
-         (header (concat (if note " " "")
+         (header (concat (nano-agenda--entry-meeting-link entry)
+                         (nano-agenda--entry-meeting-note entry)
                          (propertize header 'face header-face)))
          (prefix (cond (daterange
                         (cons (nano-agenda--svg-progress-bar
                                (car daterange) (cdr daterange) time-face) nil))
                        (is-deadline
-                        (cons (nano-agenda--svg-tag
-                               "TODO" deadline-face) nil))
+                        (cons ;; (nano-agenda--svg-tag "TODO" deadline-face)
+                              (nano-agenda--entry-todo entry)
+                              nil))
                        (is-todo
-                        (cons (nano-agenda--svg-tag
-                               "TODO" todo-face) nil))
+                        (cons ;; (nano-agenda--svg-tag "TODO" todo-face)
+                              (nano-agenda--entry-todo entry)
+                              nil))
                        (time
                         (cons (propertize
                                (format-time-string "%H:%M" (car time))
@@ -706,13 +773,22 @@ FACE. DATE is expressed as day name and day"
                                  "—————"
                                  'face time-face) nil))))
          
-         (separator (cond (daterange " • ")
-                          (is-todo   " • ")
-                          (is-deadline " • ")
-                          (time " │ ")
-                          (t  " • "))))
+         ;; (separator (cond (daterange " • ")
+         ;;                  (is-todo   " • ")
+         ;;                  (is-deadline " • ")
+         ;;                  (time " │ ")
+         ;;                  (t  " • ")))
+;;         (separator (propertize separator 'face 'nano-faded))
+;;         (prefix (cons (propertize (or (car prefix) "") 'face 'nano-faded)
+;;                       (propertize (or (cdr prefix) "") 'face 'nano-faded)))
+         )
     (setq nano-agenda--entry-is-now (or nano-agenda--entry-is-now is-now))
-    (concat (car prefix) separator header tag-align tag)))
+    (concat " "
+            (car prefix)
+            (propertize " │ " 'face 'nano-subtle-i)
+            header
+            tag-align
+            tag)))
 
 
 (defvar nano-agenda--date-occupancies nil
@@ -773,8 +849,8 @@ Occupancies are cached for efficiency."
          (foreground-color (if (< (nano-agenda-color-luminance background-color) 0.5)
                                "white"
                                "black"))
-         (face (cond (is-selected   'nano-agenda-calendar-selected)
-                     (is-offday     'nano-agenda-calendar-offday)
+         (face (cond (is-offday     'nano-agenda-calendar-offday)
+                     (is-selected   'nano-agenda-calendar-selected)
                      (is-holidays   'nano-agenda-calendar-holidays)
                      (is-occupied `(:background ,background-color
                                     :foreground ,foreground-color
@@ -784,8 +860,9 @@ Occupancies are cached for efficiency."
                      (t             'nano-agenda-calendar-default))))
     (insert (propertize (format-time-string "%e " date) 'face face))))
 
-(defun nano-agenda--insert-calendar (&optional force-update palette)  
-  (let* ((date (decode-time nano-agenda-date))
+(defun nano-agenda--insert-calendar (date &optional force-update palette)
+  
+  (let* ((date (decode-time date))
          (day (nth 3 date))
          (month (nth 4 date))
          (year (nth 5 date))
@@ -813,10 +890,8 @@ Occupancies are cached for efficiency."
     (insert " ")
     (insert (propertize (mapconcat #'concat weekend-names " ")
                         'face '(nano-agenda-calendar-weekend                                
-                                nano-agenda-calendar-header-days
-                                )))
+                                nano-agenda-calendar-header-days)))
     (insert "\n")
-    
     (dotimes (row 6)
       (dotimes (col 7)
         (let* ((day (- (+ col (* row 7)) first-day -1))
@@ -1064,7 +1139,18 @@ Occupancies are cached for efficiency."
   (with-current-buffer (get-buffer-create nano-agenda-buffer-name)
     (erase-buffer)
     (setq nano-agenda--entry-is-now nil)
-    (nano-agenda--insert-calendar)
+    (let* ((date (decode-time nano-agenda-date))
+           (day (nth 3 date))
+           (month (nth 4 date))
+           (year (nth 5 date))
+           (prev-month (encode-time (list 0 0 0 day (1- month) year)))
+           (curr-month (encode-time (list 0 0 0 day month year)))
+           (next-month (encode-time (list 0 0 0 day (1+ month) year))))
+      (nano-agenda--insert-calendar prev-month)
+      (insert "\n")
+      (nano-agenda--insert-calendar curr-month)
+      (insert "\n")
+      (nano-agenda--insert-calendar next-month))
     (goto-char (point-min))
 
   (let* ((date (decode-time nano-agenda-date))
@@ -1084,7 +1170,19 @@ Occupancies are cached for efficiency."
       (goto-char (point-min))
       (nano-agenda--insert-clock))    
     (goto-char (point-min))
+    (insert nano-agenda-header)
     (run-hooks nano-agenda-update-hook)))
+
+(defun nano-agenda-force-update ()
+  "Update agenda"
+
+  (interactive)
+  (setq nano-agenda--date-occupancies nil)
+  (setq nano-agenda--entries nil)
+  (setq nano-agenda--holidays nil)
+  (setq nano-agenda--anniversaries nil)
+  (nano-agenda-update))
+
 
 (defun nano-agenda-quit ()
   "Kill agenda and remove timer."
@@ -1101,11 +1199,12 @@ regular update."
   
   (interactive)
   (switch-to-buffer (get-buffer-create nano-agenda-buffer-name))
-  (set-window-dedicated-p nil t)
+  ;; (set-window-dedicated-p nil t)
   (nano-agenda-update)
   (when (fboundp 'show-paren-local-mode)
     (show-paren-local-mode 0))
-  (nano-agenda-mode 1))
+  (nano-agenda-mode 1)
+  nano-agenda-buffer-name)
 
 (define-minor-mode nano-agenda-mode
   "Minor mode for nano-agenda day view."
@@ -1116,7 +1215,7 @@ regular update."
             (,(kbd "<SPC>")     . nano-agenda-view-entry)
             (,(kbd "<return>")  . nano-agenda-edit-entry)
             (,(kbd "c")         . org-capture)
-            (,(kbd "r")         . nano-agenda-update)
+            (,(kbd "r")         . nano-agenda-force-update)
             (,(kbd "d")         . nano-agenda-view-mode-day)
             (,(kbd "w")         . nano-agenda-view-mode-week)
             (,(kbd "g")         . nano-agenda-update)
