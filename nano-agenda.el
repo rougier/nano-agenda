@@ -115,22 +115,20 @@
   :group 'nano-agenda
   :type '(repeat string))
 
-(defcustom nano-agenda-tags '(("TRIP" . ("TRIP" . nano-critical-i))
-                              ("CONF" . ("CONF" . nano-faded))
-                              ("HYPERMONDES" . ("HOME" . nano-default))
-                              ("ADM" . ("ADM" . nano-default-i))
-                              ("COSO" . ("ADM" . nano-default-i))
-                              ("SCI" . ("SCI" . nano-salient-i))
-                              ("PHD" . ("SCI" . nano-salient-i))
-                              ("CZI" . ("DEV" . nano-faded-i))
-                              ("DEV" . ("DEV" . nano-salient-i))
-                              ("HOME" . ("HOME" . nano-default))
-                              ("TALK" . ("TALK" . nano-salient-i)))
-  "Ordered list of (tags . face) that are shown in the agenda when present
-inside an entry. Any other tags are hidden."
+(defcustom nano-agenda-tags
+  '(("MEETING" . ("[bootstrap:people-fill]" . nano-salient-i))
+    ("ONLINE" . ("[bootstrap:headphones]" . nano-salient-i))
+    ("CONF" . ("CONF" . nano-salient-i))
+    ("DEADLINE" . ("[bootstrap:bell-fill]" . nano-critical-i))
+    ("TALK" . ("[bootstrap:easel3]" . nano-popout-i))
+    ("@NAOMI" . ("@NAOMI" . nano-salient-i))
+    ("GITHUB" . ("[bootstrap:github]" . nano-salient-i)))
+  
+  "List of (org-tag . (svg-tag . face)) items that is used
+to display svg-tag with face in the agenda when entry has org-tag."
   
   :group 'nano-agenda
-  :type '(repeat (cons string face)))
+  :type '(repeat (cons string (cons string face))))
 
 (defcustom nano-agenda-tags-align t
   "Whether to align tags on the right"
@@ -501,17 +499,20 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
               (string-to-number (match-string 2 extra)))))))
 
 
+
 (defun nano-agenda--entry-tags (entry)
   "Return the first tag of ENTRY (if any)"
-  
-  (let* ((entry-tags (get-text-property 0 'tags entry))
-         (entry-tags (mapcar #'substring-no-properties entry-tags))
-         (agenda-tags (mapcar #'car nano-agenda-tags))
-         (tag (catch 'found
-                (dolist (tag agenda-tags)
-                  (if (member tag entry-tags)
-                    (throw 'found (assoc tag nano-agenda-tags)))))))
-    (when tag (cdr tag))))
+
+  (let* ((tags (mapcar (lambda (tag)
+                         (let* ((tag (substring-no-properties tag))
+                                (nano-tag (cdr (assoc tag nano-agenda-tags)))
+                                (face (org-get-tag-face tag))
+                                (face (if (facep face) face 'org-tag))
+                                (tag (or (car nano-tag) tag))
+                                (face (or (cdr nano-tag) face)))
+                           (nano-agenda--svg-tag tag face)))
+                       (get-text-property 0 'tags entry))))
+    (mapconcat #'identity tags " ")))
 
 (defun nano-agenda--entry-is-deadline (entry)
   "Return t if ENTRY is a deadline"
@@ -545,7 +546,6 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
                                      :background (face-background face nil 'default))))
     (propertize (format "%2d/%2d" count total) 'display tag)))
 
-
 (defvar nano-agenda--svg-tags nil
   "Cached list of svg tags (indexed by (label . face)")
 
@@ -571,12 +571,12 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
                                     :font-weight 'regular
                                     :foreground (face-foreground actual-face nil 'default)
                                     :background (face-background actual-face nil 'default)))))
-    (add-to-list 'nano-agenda--svg-tags (cons (cons label face) tag))))
-
-    (let ((tag (cdr (assoc (cons label face) nano-agenda--svg-tags)))
-          (map (make-sparse-keymap)))
+      (add-to-list 'nano-agenda--svg-tags (cons (cons label face) tag))))
+  (let ((true-label (replace-regexp-in-string " *\\[.+\\] *" "!!" label))
+        (tag (cdr (assoc (cons label face) nano-agenda--svg-tags)))
+        (map (make-sparse-keymap)))
     (define-key map [mouse-1] `(lambda () (interactive) (browse-url ,link)))
-    (propertize (concat label " ")
+    (propertize (concat true-label " ")
                 'keymap (when link map)
                 'pointer (when link 'hand)
                 'help-echo link
@@ -735,26 +735,20 @@ note link (as property). Else it returns an empty string."
          (is-todo (nano-agenda--entry-is-todo entry))
          (is-conflict (nano-agenda--entry-is-conflict entry))
          (is-deadline (nano-agenda--entry-is-deadline entry))
-         (link (nano-agenda--entry-link entry))
-         (note (nano-agenda--entry-note entry))
-         (tag (nano-agenda--entry-tags entry))
+         ;;(link (nano-agenda--entry-link entry))
+         ;;(note (nano-agenda--entry-note entry))
+         (tags (nano-agenda--entry-tags entry))
          (daterange (nano-agenda--entry-daterange entry))
-         (header (nano-agenda--entry-header entry))
-         
+         (header (nano-agenda--entry-header entry))         
          (header-face   'default)
          (time-face     (if is-conflict 'error 'nano-faded))
          (deadline-face 'error-i)
          (todo-face     'default-i) 
-         (tag-face      (when tag (cdr tag)))
-         (tag           (when tag (car tag)))
-         (tag (cond (tag (nano-agenda--svg-tag tag tag-face))
-                    ( "")))
-
-         (tag-align (if (and tag  nano-agenda-tags-align)
-                        (propertize " " 'display `(space :align-to (- right 1 ,(length tag))))
+         (tag-align (if (and tags nano-agenda-tags-align)
+                        (propertize " " 'display `(space :align-to (- right 1 ,(length tags))))
                       " "))         
-         (header (concat (nano-agenda--entry-meeting-link entry)
-                         (nano-agenda--entry-meeting-note entry)
+         (header (concat ;;(nano-agenda--entry-meeting-link entry)
+                         ;;(nano-agenda--entry-meeting-note entry)
                          (propertize header 'face header-face)))
          (prefix (cond (daterange
                         (cons (nano-agenda--svg-progress-bar
@@ -793,7 +787,7 @@ note link (as property). Else it returns an empty string."
             (propertize " │ " 'face 'nano-subtle-i)
             header
             tag-align
-            tag)))
+            tags)))
 
 
 (defvar nano-agenda--date-occupancies nil
