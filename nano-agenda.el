@@ -118,11 +118,10 @@
 (defcustom nano-agenda-tags
   '(("MEETING" . ("[bootstrap:people-fill]" . nano-salient-i))
     ("ONLINE" . ("[bootstrap:headphones]" . nano-salient-i))
-    ("CONF" . ("CONF" . nano-salient-i))
-    ("DEADLINE" . ("[bootstrap:bell-fill]" . nano-critical))
-    ("TALK" . ("[bootstrap:person-fill]" . nano-critical-i))
-    ("@NAOMI" . ("@NAOMI" . nano-salient-i))
-    ("GITHUB" . ("[bootstrap:github]" . nano-salient)))
+    ("CODE" . ("[bootstrap:code]" . nano-salient-i))
+    ("CONF" . ("[bootstrap:person-fill]" . nano-salient-i))
+    ("EVENT" . ("[bootstrap:people]" . nano-salient-i))
+    ("TALK" . ("[bootstrap:mortarboard-fill]" . nano-critical-i)))
   
   "List of (org-tag . (svg-tag . face)) items that are used
 to display svg-tag (string) with face (face) in the agenda when
@@ -1012,6 +1011,7 @@ Occupancies are cached for efficiency."
 	      (when (re-search-forward org-complex-heading-regexp nil t)
 	        (goto-char (match-beginning 4)))))
       (org-narrow-to-subtree)
+      (window-resize nil (- 10 (window-size)))
       (when (functionp 'nano-modeline-header)
         (let ((buttons '(("SAVE" . (save-buffer))
                          ("CLOSE" . (nano-agenda-hide-entry)))))
