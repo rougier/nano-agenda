@@ -119,13 +119,14 @@
   '(("MEETING" . ("[bootstrap:people-fill]" . nano-salient-i))
     ("ONLINE" . ("[bootstrap:headphones]" . nano-salient-i))
     ("CONF" . ("CONF" . nano-salient-i))
-    ("DEADLINE" . ("[bootstrap:bell-fill]" . nano-critical-i))
-    ("TALK" . ("[bootstrap:easel3]" . nano-popout-i))
+    ("DEADLINE" . ("[bootstrap:bell-fill]" . nano-critical))
+    ("TALK" . ("[bootstrap:person-fill]" . nano-critical-i))
     ("@NAOMI" . ("@NAOMI" . nano-salient-i))
-    ("GITHUB" . ("[bootstrap:github]" . nano-salient-i)))
+    ("GITHUB" . ("[bootstrap:github]" . nano-salient)))
   
-  "List of (org-tag . (svg-tag . face)) items that is used
-to display svg-tag with face in the agenda when entry has org-tag."
+  "List of (org-tag . (svg-tag . face)) items that are used
+to display svg-tag (string) with face (face) in the agenda when
+entry is tagged with org-tag (string)."
   
   :group 'nano-agenda
   :type '(repeat (cons string (cons string face))))
@@ -664,13 +665,26 @@ FACE. DATE is expressed as day name and day"
   (let ((n (forward-line n)))
     (insert (make-string n ?\n))))
 
-
-(defun nano-agenda--entry-todo (entry)
-  "Create an icon button for ENTRY if it is a TODO."
+(defun nano-agenda--entry-todo (entry &optional face)
+  "Create a button for ENTRY whose press action is to mark entry as done."
   
   (let* ((marker (get-text-property 0 'org-marker entry))
          (buffer (marker-buffer marker))
-         (pos (marker-position marker)))
+         (pos (marker-position marker))
+         (face (or face 'default))
+         (font-family (plist-get svg-lib-style-default ':font-family))
+         (active  `(default . (:foreground ,(face-foreground face nil 'default)
+                               :background ,(face-background face nil 'default)
+                               ;; :font-weight bold
+                               :font-family ,font-family)))
+         (hover  `(default . (:foreground ,(face-background face nil 'default)
+                              :background ,(face-foreground face nil 'default)
+                              :font-weight bold
+                              :font-family ,font-family)))
+         (press  `(default . (:foreground ,(face-background 'default)
+                              :background ,(face-foreground 'default)
+                              :font-weight bold
+                              :font-family ,font-family))))
     (svg-lib-button "TODO"
                     `(lambda ()
                        (interactive)
@@ -679,52 +693,8 @@ FACE. DATE is expressed as day name and day"
                            (goto-char ,pos)
                            (org-todo 'done))))
                     "Mark entry as done"
-                    `(font-lock-comment-face . (:font-weight semi-bold :font-family "Roboto Mono")))))
+                    active hover press)))
 
-
-(defvar nano-agenda--entry-meeting-links nil
-  "Cached list for link buttons")
-
-(defun nano-agenda--entry-meeting-link (entry)
-  "Create an icon button for ENTRY if entry has a MEETING tag and a
-location link (as property). Else it returns an empty string."
-  
-  (let* ((tags (get-text-property 0 'tags entry))
-         (link (nano-agenda--entry-link entry)))
-    (unless (assoc link nano-agenda--entry-meeting-links)
-      (let ((button (if (and link (member "MEETING" tags))
-                        (concat (svg-lib-button "[bootstrap:people-fill]"
-                                                `(lambda () (interactive) (browse-url ,link))
-                                                (format "Connect to meeting (%s)"
-                                                        (url-domain (url-generic-parse-url link))))
-                                " ")
-                      "")))
-        (setq nano-agenda--entry-meeting-links
-              (add-to-list 'nano-agenda--entry-meeting-links (cons link button)))))
-    (cdr (assoc link nano-agenda--entry-meeting-links))))
-        
-
-(defvar nano-agenda--entry-meeting-notes nil
-  "Cached list for link buttons")
-
-(defun nano-agenda--entry-meeting-note (entry)
-  "Create an icon button for ENTRY if entry has a MEETING tag and a
-note link (as property). Else it returns an empty string."
-
-  (let* ((tags (get-text-property 0 'tags entry))
-         (link (nano-agenda--entry-note entry)))
-    (unless (assoc link nano-agenda--entry-meeting-notes)
-      (let ((button (if (and link (member "MEETING" tags))
-                        (concat (svg-lib-button "[bootstrap:text-left]"
-                                                `(lambda () (interactive) (browse-url ,link))
-                                                (format "Go to notes (%s)"
-                                                        (url-domain (url-generic-parse-url link))))
-                                " ")
-                      "")))
-        (setq nano-agenda--entry-meeting-notes
-              (add-to-list 'nano-agenda--entry-meeting-notes (cons link button)))))
-    (cdr (assoc link nano-agenda--entry-meeting-notes))))
-  
 (defun nano-agenda--entry-format (entry &optional compact)
   "Return a formatted org agenda entry in compact form if COMPACT is t."
   
@@ -735,8 +705,6 @@ note link (as property). Else it returns an empty string."
          (is-todo (nano-agenda--entry-is-todo entry))
          (is-conflict (nano-agenda--entry-is-conflict entry))
          (is-deadline (nano-agenda--entry-is-deadline entry))
-         ;;(link (nano-agenda--entry-link entry))
-         ;;(note (nano-agenda--entry-note entry))
          (tags (nano-agenda--entry-tags entry))
          (daterange (nano-agenda--entry-daterange entry))
          (header (nano-agenda--entry-header entry))         
@@ -747,19 +715,15 @@ note link (as property). Else it returns an empty string."
          (tag-align (if (and tags nano-agenda-tags-align)
                         (propertize " " 'display `(space :align-to (- right 1 ,(length tags))))
                       " "))         
-         (header (concat ;;(nano-agenda--entry-meeting-link entry)
-                         ;;(nano-agenda--entry-meeting-note entry)
-                         (propertize header 'face header-face)))
+         (header (concat (propertize header 'face header-face)))
          (prefix (cond (daterange
                         (cons (nano-agenda--svg-progress-bar
                                (car daterange) (cdr daterange) time-face) nil))
                        (is-deadline
-                        (cons ;; (nano-agenda--svg-tag "TODO" deadline-face)
-                              (nano-agenda--entry-todo entry)
+                        (cons (nano-agenda--entry-todo entry 'error)
                               nil))
                        (is-todo
-                        (cons ;; (nano-agenda--svg-tag "TODO" todo-face)
-                              (nano-agenda--entry-todo entry)
+                        (cons (nano-agenda--entry-todo entry 'font-lock-comment-face)
                               nil))
                        (time
                         (cons (propertize
