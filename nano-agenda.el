@@ -68,6 +68,7 @@
 (require 'holidays)
 (require 'org-agenda)
 (require 'svg-lib)
+(require 'hl-line)
 
 (defgroup nano-agenda nil
   "N Λ N O Agenda"
