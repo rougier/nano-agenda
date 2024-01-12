@@ -144,6 +144,17 @@ entry is tagged with org-tag (string)."
   :group 'nano-agenda
   :type 'string)
 
+(defcustom nano-agenda-header-show t
+  "Wheter to show agenda header"
+  :type 'boolean
+  :group 'nano-agenda)
+
+(defcustom nano-agenda-header-padding '(0.4 . 0.5)
+  "Top & bottom padding for the header line)"
+  :type '(cons (number :tag "Top padding")
+               (number :tag "Bottom padding"))
+  :group 'nano-agenda)
+
 (defface nano-agenda-default
   '((t :inherit default))
   "Default face (for casual day)"
@@ -289,9 +300,6 @@ Return a value between 0 and 1."
 
 (defvar nano-agenda-update-hook nil
   "Normal hook run after agenda is updated")
-
-(defvar nano-agenda-header ""
-  "Header string to be inserted at the top of the agenda")
 
 (defvar nano-agenda-timer nil
   "Timer for updating agenda")
@@ -587,8 +595,9 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
 (defun nano-agenda--svg-icon (top bottom &optional face)
   "Return a two part SVG icon (top . bottom) with given TOP and
 BOTTOM text and FACE"
-
+  
   (let* ((face (or face 'default))
+         (padding nano-agenda-header-padding)
          (image (svg-lib-box top bottom nil
                              :radius 4
                              :font-family "Roboto"
@@ -600,10 +609,12 @@ BOTTOM text and FACE"
          (text-width (/ image-width char-width)))
     (cons
      (propertize top
-                 'display (list (list 'slice 0  0 image-width char-height) image)
+                 'display (list (list 'slice 0  0 image-width char-height)
+                                `(raise ,(- (car padding))) image)
                  'line-height t)
      (propertize bottom
-                 'display (list (list 'slice 0  char-height image-width char-height) image)
+                 'display (list (list 'slice 0  char-height image-width char-height)
+                                `(raise ,(cdr padding)) image)
                  'line-height t))))
 
 (defun nano-agenda--svg-icon-date (date &optional face)
@@ -620,7 +631,7 @@ FACE. DATE is expressed as month and day number"
 FACE. DATE is expressed as WEEK (literal) and week number"
 
   (let ((week "WEEK ")
-        (day (format-time-string "  %d" date)))
+        (day (format-time-string "  %W" date)))
     (nano-agenda--svg-icon week day face)))
 
 (defun nano-agenda--svg-icon-day (date &optional face)
@@ -631,19 +642,22 @@ FACE. DATE is expressed as day name and day"
         (dayname (format-time-string "  %a" date)))
     (nano-agenda--svg-icon dayname day face)))
 
+
 (defun nano-agenda--svg-label (label &optional face)
   "Make a two-lines svg displaying LABEL"
   
-  (let* ((label (propertize label 'face '(:height 2.25 :family "Roboto")))
+  (let* ((face (or face 'default))
+         (padding nano-agenda-header-padding)
+         (label (propertize label 'face '(:height 2.25 :family "Roboto")))
          (svg-width (string-pixel-width label))
          (char-height (frame-char-height))
          (char-width (frame-char-width))
-         (svg-width (* (1+ (/ svg-width char-width)) char-width))
+         (svg-width (* (+ 2 (/ svg-width char-width)) char-width))
          (svg-height (* 2 (frame-char-height)))
          (svg (svg-create svg-width svg-height)))
     (svg-text svg label
               :font-family "Roboto"
-              :font-size (* 2.25 (/ (face-attribute 'default :height) 10))
+              :font-size (* 2.5 (/ (face-attribute 'default :height) 10))
               :font-weight 300
               :fill (face-foreground face nil 'font-lock-comment-face)
               :text-anchor "end"
@@ -654,11 +668,79 @@ FACE. DATE is expressed as day name and day"
            (image (svg-lib--image svg :ascent 'center)))
       (cons
        (propertize label
-                   'display (list (list 'slice 0  0 svg-width char-height) image)
+                   'display (list (list 'slice 0  0 svg-width char-height)
+                                  `(raise ,(- (car padding))) image)
                    'line-height t)
        (propertize label
-                   'display (list (list 'slice 0  char-height svg-width char-height) image)
+                   'display (list (list 'slice 0  char-height svg-width char-height)
+                                  `(raise ,(cdr padding)) image)
                    'line-height t)))))
+
+(defun nano-agenda-header ()
+
+;;  (setq underline-minimum-offset 10
+;;        x-use-underline-position-properties nil
+;;        x-underline-at-descent-line t)
+  (let* ((date (current-time))
+         (day (nth 3 (decode-time date)))
+         (month (nth 4 (decode-time date)))
+         (year (nth 5 (decode-time date)))         
+         (org-date (list month day year))
+         (holidays (nano-agenda-holidays org-date))
+         (anniversaries (nano-agenda-anniversaries org-date))
+         (border-color "#CFD8DC")
+         (padding nano-agenda-header-padding)
+         (occupancy (nano-agenda--date-occupancy date))
+         (svg-date (nano-agenda--svg-icon-date (current-time) 'nano-salient))
+         (svg-time (nano-agenda--svg-label (format-time-string "%H:%M") 'nano-faded)))
+
+    (face-remap-set-base 'tab-line
+                         `(:box nil
+                           :inherit highlight
+                           :overline ,border-color))
+    (face-remap-set-base 'header-line
+                         `(:box nil
+                           :inherit highlight
+                           :underline (:color ,border-color
+                                       :style line
+                                       :position t)))
+  (setq tab-line-format
+        (concat
+         (propertize " " 'face `(:background ,border-color)
+                         'display `((raise ,(- (car padding))) (space :width (1))))
+         (propertize " " 'display `(raise ,(- (car padding))))
+         (car svg-date)
+         (propertize (format-time-string " %A %d %B %Y" date)
+                             'face 'nano-strong
+                             'display `(raise ,(- (car padding))))
+         (propertize (format-time-string " (Week %W)" date)
+                     'face 'nano-faded
+                     'display `(raise ,(- (car padding))))                     
+         (propertize " " 'display `(space :align-to (-  right ,(length (car svg-time)) 1 (1))))
+         (car svg-time)
+         (propertize " " 'display `(raise ,(- (car padding))))
+         (propertize " " 'face `(:background ,border-color)
+                         'display `((space :width (1))))))
+  (setq header-line-format
+        (concat
+         (propertize " " 'face `(:background ,border-color)
+                         'display `((raise ,(cdr padding)) (space :width (1))))
+         (propertize " " 'display `(raise ,(cdr padding)))
+         (cdr svg-date)
+         (propertize " " 'display `(raise ,(cdr padding)))
+         (when (or holidays anniversaries)
+           (propertize (concat (or holidays anniversaries) " - ")
+                       'face 'nano-faded 'display `(raise ,(cdr padding))))
+         (propertize (if occupancy
+                         (format "%d events" occupancy)
+                       "No event")
+                     'face 'nano-faded 'display `(raise ,(cdr padding)))
+         (propertize " " 'display `((raise ,(cdr padding))
+                                    (space :align-to (-  right ,(length (cdr svg-time)) 1 (1)))))
+         (cdr svg-time)
+         (propertize " " 'display `(raise ,(cdr padding)))
+         (propertize " " 'face `(:background ,border-color)
+                     'display `((space :width (1))))))))
 
 (defun nano-agenda-forward-line (n)
   "Move N lines forward, add newlines if necessary"
@@ -910,7 +992,7 @@ Occupancies are cached for efficiency."
     (goto-char (line-end-position))
     (insert padding) (insert separation)
     (insert (propertize title 'face 'nano-agenda-header-title))
-    (insert (propertize week 'face 'nano-agenda-header-subtitle))
+    ;; (insert (propertize week 'face 'nano-agenda-header-subtitle))
     (nano-agenda-forward-line 1)    
     (goto-char (line-end-position))
     (insert padding) (insert separation)
@@ -1133,12 +1215,13 @@ Occupancies are cached for efficiency."
                (nano-agenda--date first-day-of-week inc 0 0))
               (nano-agenda-forward-line 2))
           (nano-agenda--insert-agenda nano-agenda-date)))
-      
-      (when (stringp nano-agenda-clock-format)
-        (goto-char (point-min))
-        (nano-agenda--insert-clock))    
-      (goto-char (point-min))
-      (insert nano-agenda-header)
+      ;;      (when (stringp nano-agenda-clock-format)
+      ;;        (goto-char (point-min))
+      ;;        (nano-agenda--insert-clock))
+      (when nano-agenda-header-show
+        (goto-char (point-min))      
+        (insert "\n")
+        (nano-agenda-header))
       (run-hooks nano-agenda-update-hook))))
 
 (defun nano-agenda-force-update ()
