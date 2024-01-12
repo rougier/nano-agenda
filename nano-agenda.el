@@ -119,6 +119,7 @@
 (defcustom nano-agenda-tags
   '(("MEETING" . ("[bootstrap:people-fill]" . nano-salient-i))
     ("ONLINE" . ("[bootstrap:headphones]" . nano-salient-i))
+    ("LUNCH" . ("[material:silverware-fork-knife]" . nano-salient-i))
     ("CODE" . ("[bootstrap:code]" . nano-salient-i))
     ("CONF" . ("[bootstrap:person-fill]" . nano-salient-i))
     ("EVENT" . ("[bootstrap:people]" . nano-salient-i))
