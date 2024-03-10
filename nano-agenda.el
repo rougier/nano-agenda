@@ -486,6 +486,23 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
     (when (member url-type '("http" "https"))
       url)))
 
+
+(defun nano-agenda--entry-link-button (entry)
+  "Return any link associated with ENTRY (if any)"
+
+  (let ((link (nano-agenda--entry-link entry)))
+    (if link (propertize "  "
+                         'mouse-face 'highlight
+                         'help-echo (format "Go to %s" link)
+                         'button t
+                         'follow-link t
+                         'category t
+                         'button-data link
+                         'keymap button-map
+                         'action #'browse-url)
+      "")))
+
+
 (defun nano-agenda--entry-note (entry)
   "Return any note associated with ENTRY (if any)"
 
@@ -497,7 +514,23 @@ Finally, entry are sorted using nano-agenda-sort-predicate."
                      (when (and (stringp note) (> (length note) 0))
                        (throw 'valid note)))))))
     note))
-         
+
+(defun nano-agenda--entry-note-button (entry)
+  "Return any link associated with ENTRY (if any)"
+
+  (let* ((note (nano-agenda--entry-note entry))
+         (url-type (url-type (url-generic-parse-url note))))
+    (if note (propertize " "
+                         'mouse-face 'highlight
+                         'help-echo (format "Open note at %s" note)
+                         'button t
+                         'follow-link t
+                         'category t
+                         'button-data note
+                         'keymap button-map
+                         'action #'browse-url)
+      "")))
+
 (defun nano-agenda--entry-daterange (entry)
   "Return (count . total) if ENTRY has a date range spanning several days"
   
@@ -799,6 +832,9 @@ FACE. DATE is expressed as day name and day"
                         (propertize " " 'display `(space :align-to (- right 1 ,(length tags))))
                       " "))         
          (header (concat (propertize header 'face header-face)))
+         (header (concat (nano-agenda--entry-note-button entry)
+                         header                         
+                         (nano-agenda--entry-link-button entry)))
          (prefix (cond (daterange
                         (cons (nano-agenda--svg-progress-bar
                                (car daterange) (cdr daterange) time-face) nil))
@@ -1077,32 +1113,36 @@ Occupancies are cached for efficiency."
   "Edit current entry (if any)"
 
   (interactive)
-  (when nano-agenda--entry-marker
-    (let* ((marker nano-agenda--entry-marker)
-           (buffer (marker-buffer marker))
-           (pos (marker-position marker)))
-      (switch-to-buffer-other-window buffer)
-      (read-only-mode 0)
-      (setq nano-agenda--entry-window (get-buffer-window nil t))
-      (widen)
-      (push-mark)
-      (goto-char pos)
-      (when (derived-mode-p 'org-mode)
-        (org-fold-show-context 'agenda)
-        (recenter (/ (window-height) 2))
-        (org-back-to-heading t)
-        (let ((case-fold-search nil))
-	      (when (re-search-forward org-complex-heading-regexp nil t)
-	        (goto-char (match-beginning 4)))))
-      (org-narrow-to-subtree)
-      (window-resize nil (- 10 (window-size)))
-      (when (functionp 'nano-modeline-header)
-        (let ((buttons '(("SAVE" . (save-buffer))
-                         ("CLOSE" . (nano-agenda-hide-entry)))))
-          (nano-modeline-header
-           `((nano-modeline-buffer-status) " "
-             (nano-modeline-buffer-name ) " ")
-           `((nano-modeline-buttons ,buttons t) " ")))))))
+  (when-let* ((marker nano-agenda--entry-marker)
+              (buffer (marker-buffer marker))
+              (position (marker-position marker))
+              (org-indirect-buffer-display 'current-window))
+    (select-window (if (window-live-p nano-agenda--entry-window)
+                       nano-agenda--entry-window
+                     (split-window-vertically -12)))
+    (switch-to-buffer buffer)
+    (goto-char position)
+    (org-tree-to-indirect-buffer)
+
+    (let* ((components (org-heading-components))
+           (heading (nth 4 components))
+           (heading (replace-regexp-in-string
+                     org-link-bracket-re "\\2" heading))
+           (heading (replace-regexp-in-string
+                     org-element--timestamp-regexp "" heading))
+           (heading (string-trim heading)))
+    (rename-buffer heading))
+    (setq nano-agenda--entry-window (get-buffer-window nil t))
+    (read-only-mode -1)
+    (nano-box-mode 1)
+    (nano-box-colorize)   
+    (when (functionp 'nano-modeline-header)
+      (let ((buttons '(("SAVE" . (save-buffer))
+                       ("CLOSE" . (nano-agenda-hide-entry)))))
+        (nano-modeline-header
+         `((nano-modeline-buffer-status) " "
+           (nano-modeline-buffer-name ) " ")
+         `((nano-modeline-buttons ,buttons t) " "))))))
 
 (defun nano-agenda-goto-today ()
    "Go to previous day"
