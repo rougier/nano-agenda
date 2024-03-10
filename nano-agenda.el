@@ -40,6 +40,7 @@
 ;;
 ;; Version 0.4.0
 ;; - Full rewrite
+;; - Two line header (tab-line + header-line)
 ;;
 ;; Version 0.3.2
 ;; - Possibiliy to select and edit entries
@@ -68,6 +69,7 @@
 (require 'holidays)
 (require 'org-agenda)
 (require 'svg-lib)
+(require 'hl-line)
 (require 'hl-line)
 
 (defgroup nano-agenda nil
@@ -144,7 +146,7 @@ entry is tagged with org-tag (string)."
   :group 'nano-agenda
   :type 'string)
 
-(defcustom nano-agenda-header-show t
+(defcustom nano-agenda-header-show nil
   "Wheter to show agenda header"
   :type 'boolean
   :group 'nano-agenda)
@@ -721,7 +723,7 @@ FACE. DATE is expressed as day name and day"
          (org-date (list month day year))
          (holidays (nano-agenda-holidays org-date))
          (anniversaries (nano-agenda-anniversaries org-date))
-         (border-color "#CFD8DC")
+         (border-color (face-background 'default))
          (padding nano-agenda-header-padding)
          (occupancy (nano-agenda--date-occupancy date))
          (svg-date (nano-agenda--svg-icon-date (current-time) 'nano-salient))
@@ -764,7 +766,7 @@ FACE. DATE is expressed as day name and day"
          (when (or holidays anniversaries)
            (propertize (concat (or holidays anniversaries) " - ")
                        'face 'nano-faded 'display `(raise ,(cdr padding))))
-         (propertize (if occupancy
+         (propertize (if (> occupancy 0)
                          (format "%d events" occupancy)
                        "No event")
                      'face 'nano-faded 'display `(raise ,(cdr padding)))
@@ -791,7 +793,7 @@ FACE. DATE is expressed as day name and day"
          (font-family (plist-get svg-lib-style-default ':font-family))
          (active  `(default . (:foreground ,(face-foreground face nil 'default)
                                :background ,(face-background face nil 'default)
-                               ;; :font-weight bold
+                               :font-weight regular
                                :font-family ,font-family)))
          (hover  `(default . (:foreground ,(face-background face nil 'default)
                               :background ,(face-foreground face nil 'default)
@@ -1258,11 +1260,11 @@ Occupancies are cached for efficiency."
       ;;      (when (stringp nano-agenda-clock-format)
       ;;        (goto-char (point-min))
       ;;        (nano-agenda--insert-clock))
+      (goto-char (point-min))      
+      (insert "\n")
       (when nano-agenda-header-show
-        (goto-char (point-min))      
-        (insert "\n")
         (nano-agenda-header))
-      (run-hooks nano-agenda-update-hook))))
+      (run-hooks 'nano-agenda-update-hook))))
 
 (defun nano-agenda-force-update ()
   "Update agenda"
@@ -1321,7 +1323,7 @@ regular update."
   (if nano-agenda-mode
       (progn
         ;; (setq-local header-line-format nil)
-        ;; (setq-local mode-line-format nil)
+        (setq-local mode-line-format nil)
         (setq-local cursor-type nil)
         (setq buffer-read-only t)
         (when nano-agenda-timer
